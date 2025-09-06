@@ -6,3 +6,7 @@ __pycache__/
 .vscode/
 *.swp
 *.tmp
+trained_gp_models/
+*.pkl
+*.npz
+*.hdf5
