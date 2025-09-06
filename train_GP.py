@@ -1,181 +1,122 @@
-import pandas as pd
+# Core scientific computing imports
 import numpy as np
-from sklearn.model_selection import train_test_split
+import pandas as pd
 import matplotlib.pyplot as plt
-import tinygp
-import jaxopt
-import jax
-import jax.numpy as jnp
-from tinygp import GaussianProcess, kernels, transforms
-from functools import partial
-from scipy.interpolate import CubicSpline
-from sklearn.decomposition import PCA
-from scipy.optimize import differential_evolution
-import os
 import time
-import tinygp
-from tinygp import kernels
+import os
+from datetime import datetime
+from functools import partial
+from tqdm import tqdm, trange
+import pickle
+
+# JAX and optimization imports
 import jax
 import jax.numpy as jnp
 from jax import random
+import jaxopt
+import optax
 
+# TinyGP imports
+import tinygp
+from tinygp import GaussianProcess, kernels, transforms
+
+# Flax (neural network) imports
 import flax.linen as nn
 from flax.linen.initializers import zeros
 
-import optax
+# sklearn imports (minimal usage)
+from sklearn.model_selection import train_test_split
+from sklearn.decomposition import PCA
+from scipy.interpolate import CubicSpline
+from scipy.optimize import differential_evolution
 
-import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Use first GPU
-import jax
-jax.config.update("jax_enable_x64", False)  # Use float32 for speed
-print(f"JAX devices: {jax.devices()}")
-print(f"Using device: {jax.devices()[0]}")
-
-"""
-#### My conditional GP code ####
-"""
-
+# Local imports
 from GP_dataloader import *
-from tqdm import tqdm, trange
-import pickle
-from datetime import datetime
-import time
+from src.config.config import GP_TRAINING_DEFAULTS, NN_GP_DEFAULTS, N_COSMO_PARAMS, TRAINED_MODELS_DIR
 
-def prepare_GP_data(sim_indices, filterType='CAP', ptype='gas', 
-                             log_transform_mass=True):
+# Setup JAX environment
+try:
+    from src.utils.environment import setup_jax_environment
+    setup_jax_environment()
+except ImportError:
+    # Fallback if src/ structure not fully implemented yet
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    jax.config.update("jax_enable_x64", False)
+    print(f"JAX devices: {jax.devices()}")
+    print(f"Using device: {jax.devices()[0]}")
+
+"""
+#### Conditional GP Training Code ####
+"""
+
+def prepare_GP_data(sim_indices, filterType='CAP', ptype='gas', log_transform_mass=True):
     """
-    Prepare data for GP training with halo mass as an additional input feature.
+    Legacy wrapper for prepare_gp_training_data for backward compatibility.
+    
+    DEPRECATED: Use src.models.gp_trainer.prepare_gp_training_data instead.
+    """
+    from src.models.gp_trainer import prepare_gp_training_data
+    return prepare_gp_training_data(sim_indices, filterType, ptype, log_transform_mass)
+
+
+def train_conditional_gp(sim_indices_train, build_gp, params=None, maxiter=5000, 
+                        filterType='CAP', ptype='gas', log_transform_mass=True, save=False):
+    """
+    Train GP that learns f(cosmology_params, log_mass, pk_ratio) -> profile_value
+    
+    This is the main entry point for GP training. It has been refactored to use
+    modular functions for better maintainability.
+    
     Args:
-        sim_indices: List of simulation indices.
-        filterType: Type of filter to apply (e.g., 'CAP', 'cumulative', 'dsigma').
-        ptype: Particle type to consider (e.g., 'gas', 'dm', 'star', 'bh', 'total', 'baryon').
-        log_transform_mass: Whether to log-transform the halo mass.
+        sim_indices_train: List of simulation indices for training
+        build_gp: Function to build GP from parameters
+        params: Unused (kept for backward compatibility)
+        maxiter: Maximum iterations for optimization
+        filterType: Filter type ('CAP', 'cumulative', 'dsigma')
+        ptype: Particle type ('gas', 'dm', 'star', 'bh', 'total', 'baryon')
+        log_transform_mass: Whether to log-transform halo mass
+        save: Whether to save trained models
+    
     Returns:
-        X_combined: Input features (cosmological params + halo mass + PkRatio).
-        y: Target profiles.
-        r_bins: Radial bins corresponding to the profiles.
-        k_bins: k bins for PkRatio.
-        log_transform_mass: Whether mass was log-transformed.
+        Tuple containing (gp_models, best_params_list, model_info)
     """
+    # Import modular training functions
+    from src.models.gp_trainer import (
+        prepare_gp_training_data, train_gp_models_all_bins,
+        create_model_info, plot_training_curves, save_trained_models
+    )
     
-    # Load data using your existing function
-    r_bins, profiles_ptype, mass_halos, param_halos, k, PkRatio = getSims(sim_indices, filterType, ptype)
+    # Step 1: Prepare training data
+    X_train, y_train, r_bins, k_bins = prepare_gp_training_data(
+        sim_indices_train, filterType=filterType, ptype=ptype, 
+        log_transform_mass=log_transform_mass
+    )
     
-    print(f'Profiles shape: {profiles_ptype.shape}, Mass shape: {mass_halos.shape}, Params shape: {param_halos.shape}, PkRatio shape: {PkRatio.shape}')
+    # Step 2: Train GP models for all radial bins
+    lr = GP_TRAINING_DEFAULTS.get('learning_rate', 3e-4)
+    gp_models, best_params_list, losses_all = train_gp_models_all_bins(
+        build_gp, X_train, y_train, r_bins, k_bins, maxiter=maxiter, lr=lr
+    )
     
-    # Add mass as an input feature
-    if log_transform_mass:
-        mass = np.log10(mass_halos).reshape(-1, 1)  # Shape: (n_halos*n_sims, 1)
-        profiles_ptype_safe = np.where(profiles_ptype < 0, 1e-10, profiles_ptype)
-        profiles = np.log10(profiles_ptype_safe + 1e-10)  # Avoid log(0) and negative values
-    else:
-        mass = mass_halos.reshape(-1, 1)/1e13
-        profiles = profiles_ptype/1e13
-    
-    # Combine cosmological parameters + halo mass
-    X_combined =  np.concatenate([np.concatenate([param_halos, mass], axis=1), PkRatio], axis=1)
-    # Shape: (n_halos*n_sims, n_cosmo_params + 1 + k_bins)
-    
-    # Preprocessing
-    # Replace NaNs in y (profiles) with interpolation along axis=1 (over r_bins)
-    y = profiles.copy()
-
-    return (jnp.array(X_combined), jnp.array(y), jnp.array(r_bins), jnp.array(k[0]))
-
-
-def train_conditional_gp(sim_indices_train, build_gp, params =None, maxiter=5_000, filterType='CAP', ptype='gas', 
-                             log_transform_mass=True, save=False):
-    """
-    Train GP that learns f(cosmology_params, log_mass) -> profile_value
-    """
-
-    # Prepare data with mass
-    X_train, y_train, r_bins, k_bins = prepare_GP_data(sim_indices_train, filterType=filterType, ptype=ptype, log_transform_mass=log_transform_mass)
-
-    n_cosmo_params = 35
-    n_k_bins = k_bins.shape
-
-    gp_models = []
-    best_params_list = []
-    losses_all = []
-    for r_bin_idx in tqdm(range(len(r_bins)), desc="Training GP for each r_bin"):
-        # Prepare data for this r_bin
-        y_train_bin = y_train[:, r_bin_idx]
-
-        # Initialize parameters: amplitude -- degree of variation; length_scale -- sensitivity to input changes
-        params = {
-            "cosmo_amplitude": jnp.float32(0.0),
-            "cosmo_length_scales": jnp.zeros(n_cosmo_params),
-            "log_mass_amplitude": jnp.float32(0.0),
-            "mass_length_scale": jnp.float32(0.0),
-            "pk_amplitude": jnp.float32(0.0),
-            "pk_length_scale": jnp.zeros(n_k_bins),
-            "noise": jnp.float32(1e-2)
-        }
-
-
-        @jax.jit
-        def loss(params):
-            return -build_gp(params, X_train).log_probability(y_train_bin)
-        
-
-        solver = jaxopt.ScipyMinimize(fun=loss, maxiter=maxiter)
-        soln = solver.run(params)
-        best_params = soln.params
-        scipy_final_loss = soln.state.fun_val
-
-
-        #     # Using Adam optimizer
-        lr = 3e-4
-        opt = optax.adamw(learning_rate=lr)
-        opt_state = opt.init(best_params)
-        adam_losses = []
-        for i in range(100):
-            loss_val, grads = jax.value_and_grad(loss)(best_params)
-            adam_losses.append(loss_val)
-            updates, opt_state = opt.update(grads, opt_state, best_params)
-            best_params = optax.apply_updates(best_params, updates)
-        opt_gp = build_gp(best_params, X_train)
-        gp_models.append(opt_gp)
-        combined_losses = [scipy_final_loss] + adam_losses
-
-        best_params_list.append(best_params)
-        losses_all.append(combined_losses)
-
-    model_info = {
+    # Step 3: Create model metadata
+    model_info = create_model_info(
+        filterType, ptype, r_bins, k_bins, log_transform_mass,
+        X_train, y_train, maxiter, lr
+    )
+    # Add legacy fields for backward compatibility
+    model_info.update({
         'gp_params': best_params_list,
         'gp_builder': str(build_gp),
-        'optimizer': 'adamw',
-        'maxiter': maxiter,
-        'learning_rate': lr,
-        'r_bin_idx': r_bin_idx,
-        'filterType': filterType,
-        'ptype': ptype,
-        'r_bins': r_bins,
-        'k_bins': k_bins,
-        'log_mass_transform': log_transform_mass,
-        'X_train': X_train,
-        'y_train': y_train_bin,
-        'n_params': n_cosmo_params,  # This stays as int - not optimized
-        'n_k_bins': n_k_bins,       # This stays as int - not optimized
-    }
-    for i, losses in enumerate(losses_all):
-        plt.plot(losses, label=f"r_bin[{i}]")
-    plt.legend()
-    plt.ylabel("negative log likelihood")
-    plt.xlabel("step number")
-    plt.show()
-
+        'optimizer': 'scipy + adamw'
+    })
+    
+    # Step 4: Plot training curves
+    plot_training_curves(losses_all)
+    
+    # Step 5: Save models if requested
     if save:
-        # Save the trained models, parameters, and info to disk
-        save_dir = "trained_gp_models"
-        os.makedirs(save_dir, exist_ok=True)
-        with open(os.path.join(save_dir, "gp_models.pkl"), "wb") as f:
-            pickle.dump(gp_models, f)
-        with open(os.path.join(save_dir, "best_params_list.pkl"), "wb") as f:
-            pickle.dump(best_params_list, f)
-        with open(os.path.join(save_dir, "model_info.pkl"), "wb") as f:
-            pickle.dump(model_info, f)
+        save_trained_models(gp_models, best_params_list, model_info)
+    
     return gp_models, best_params_list, model_info
     
 
