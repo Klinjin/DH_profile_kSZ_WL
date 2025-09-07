@@ -198,16 +198,6 @@ def build_robust_kernel_gp(params, X):
     return GaussianProcess(robust_kernel, X, diag=robust_noise + 1e-6)
 
 
-# Mapping of kernel names to functions for easy selection
-KERNEL_REGISTRY = {
-    'hierarchical': lambda params, X: build_hierarchical_gp_improved(params, X),
-    'multiscale': build_multiscale_kernel_gp,
-    'physics_informed': build_physics_informed_gp, 
-    'adaptive_noise': build_adaptive_noise_gp,
-    'robust': build_robust_kernel_gp
-}
-
-
 def build_hierarchical_gp_improved(params, X):
     """
     Improved version of the original hierarchical GP with better initialization.
@@ -227,6 +217,16 @@ def build_hierarchical_gp_improved(params, X):
                              kernels.Matern52(distance=kernels.distance.L2Distance()))
 
     return GaussianProcess(kernel, X, diag=params["noise"]**2 + 1e-6)
+
+
+# Mapping of kernel names to functions for easy selection
+KERNEL_REGISTRY = {
+    'hierarchical': lambda params, X: build_hierarchical_gp_improved(params, X),
+    'multiscale': build_multiscale_kernel_gp,
+    'physics_informed': build_physics_informed_gp, 
+    'adaptive_noise': build_adaptive_noise_gp,
+    'robust': build_robust_kernel_gp
+}
 
 
 def get_kernel_builder(kernel_name):

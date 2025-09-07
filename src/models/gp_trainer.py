@@ -17,7 +17,7 @@ import os
 from datetime import datetime
 
 from tinygp import GaussianProcess, kernels, transforms
-from src.config.config import GP_TRAINING_DEFAULTS, TRAINED_MODELS_DIR, ensure_directory_exists
+from src.config.config import GP_TRAINING_DEFAULTS, TRAINED_MODELS_DIR
 
 
 def prepare_gp_training_data(sim_indices_train, filterType='CAP', ptype='gas', log_transform_mass=True):
@@ -188,7 +188,10 @@ def save_trained_models(gp_models, best_params_list, model_info, save_dir=None):
     if save_dir is None:
         save_dir = TRAINED_MODELS_DIR
     
-    ensure_directory_exists(save_dir)
+    today_str = datetime.now().strftime("%m%d%H")
+    save_dir = save_dir + f"/{model_name}_{today_str}"
+
+    os.makedirs(save_dir, exist_ok=True)
     
     # Save components
     with open(os.path.join(save_dir, "gp_models.pkl"), "wb") as f:

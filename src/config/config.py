@@ -117,8 +117,3 @@ def validate_particle_type(ptype):
     if ptype not in PARTICLE_TYPES:
         raise ValueError(f"Invalid ptype: {ptype}. Must be one of {PARTICLE_TYPES}")
     return ptype
-
-def ensure_directory_exists(directory):
-    """Create directory if it doesn't exist."""
-    os.makedirs(directory, exist_ok=True)
-    return directory
