@@ -272,3 +272,74 @@ The solutions maintain complete scientific rigor while dramatically improving th
 - 📊 **Notebook Streamlined**: `GP_integrated.ipynb` focuses on time costs + test plots
 - 🏗️ **Architecture Improved**: Clean `src/models/` directory with 5 essential modules
 - 📁 **Automatic Plot Saving**: All results saved to timestamped directories
+
+## 🔍 Latest Comprehensive GP Comparison Results (September 7, 2024)
+
+### Performance Ranking by Accuracy (MAPE%):
+1. **🥇 Hierarchical GP (loaded)**: **29.1% MAPE** - Current best performer
+   - High radius error: 46.7%
+   - Training time: 2552.6s (loading pre-trained model)
+   - Status: Production ready, most reliable
+
+2. **🥈 Robust GP (JAX)**: **31.6% MAPE** - Best newly trained method
+   - High radius error: 46.7% (tied for best)
+   - Training time: 4208.6s
+   - Status: Most promising new kernel design
+
+3. **🥉 Physics-informed GP (JAX)**: **32.3% MAPE** - Physics-based approach
+   - High radius error: 47.5%
+   - Training time: 3270.0s
+   - Status: Good balance of accuracy and interpretability
+
+4. **NN+GP (loaded)**: 41.9% MAPE - Neural network enhanced
+   - High radius error: 66.7% (struggles at large radii)
+   - Training time: 3083.3s
+   - Status: Less accurate but fast predictions
+
+5. **Multiscale GP (JAX)**: 51.9% MAPE - Needs improvement
+   - High radius error: 88.9% (poorest performance)
+   - Training time: 3678.8s
+   - Status: Kernel design requires refinement
+
+### Key Scientific Findings:
+
+#### ✅ **Breakthrough**: JAX-Compatible Kernels Show Promise
+- **Robust and Physics-informed kernels** achieve ~31-32% MAPE
+- **Competitive with best pre-trained model** (29.1% MAPE hierarchical)
+- **Superior high-radius performance** compared to NN+GP approach
+
+#### ✅ **Hierarchical GP Remains Gold Standard**
+- **Lowest overall error** (29.1% MAPE) validates original design
+- **Best balance** of accuracy and computational efficiency
+- **Production-ready** for NPE integration
+
+#### ❌ **Multiscale Kernel Needs Redesign**
+- **Highest errors** (51.9% MAPE, 88.9% at high radii) indicate fundamental issues
+- **Overly complex** kernel structure may be causing overfitting
+- **Requires theoretical reformulation** before production use
+
+### Implementation Status Update:
+
+#### Files Successfully Validated:
+- ✅ `src/models/kernel_integration.py` - Integration working correctly
+- ✅ `src/models/improved_kernels.py` - Robust and physics-informed kernels effective
+- ✅ `GP_integrated.ipynb` - Complete comparison pipeline operational
+- ✅ All JAX compatibility issues resolved
+
+#### Performance Metrics Summary:
+```
+Method                 Valid MSE        MAE        MAPE%    HighR%   Time[s]
+---------------------------------------------------------------------------
+Hierarchical (loaded)   21    1.84e+01   3.71e+00   29.1     46.7    2552.6
+Robust GP              21    2.41e+01   4.04e+00   31.6     46.7    4208.6
+Physics-informed GP    21    2.42e+01   4.12e+00   32.3     47.5    3270.0
+NN+GP (loaded)         21    3.97e+01   5.36e+00   41.9     66.7    3083.3
+Multiscale GP          21    7.22e+01   6.70e+00   51.9     88.9    3678.8
+```
+
+### Next Action Items:
+1. **Continue with hierarchical GP** for immediate NPE integration (most reliable)
+2. **Develop robust kernel further** - shows excellent promise for future work  
+3. **Investigate multiscale kernel issues** - theoretical redesign needed
+4. **Optimize training times** - current 3000-4000s too slow for production
+5. **Test on larger datasets** - validate performance scaling
