@@ -79,6 +79,7 @@ def train_conditional_gp(sim_indices_train, build_gp, params=None, maxiter=5000,
     
     Returns:
         Tuple containing (gp_models, best_params_list, model_info)
+        Notes: when applying on test data, use GaussianProcess(kernel, X_train).condition(y_train, X_test)
     """
     # Import modular training functions
     from src.models.gp_trainer import (
@@ -165,6 +166,8 @@ class MLP(nn.Module):
 class build_NN_gp(nn.Module):
     @nn.compact
     def __call__(self, x_train, y_train, t_test=None):
+        #  Notes: when applying on test data, use GaussianProcess(kernel, X_train).condition(y_train, X_test)
+
         n_cosmo_params=35
         n_k_bins=len(x_train[0]) - n_cosmo_params - 1  # Assuming last dimension is (n_cosmo + 1 + n_k)
 
