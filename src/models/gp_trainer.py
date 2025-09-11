@@ -168,12 +168,12 @@ class GPTrainer:
         self.n_features = self.X_train.shape[1]
         
         # Only train linear small bins if using CAP filter for kSZ
-        if self.filterType == 'CAP' and self.ptype == 'gas':
-            self.n_radius_bins = self.n_radius_bins//2
-            self.r_bins = self.r_bins[:self.n_radius_bins]
-            self.y_train = self.y_train[:, :self.n_radius_bins]
-            self.y_val = self.y_val[:, :self.n_radius_bins] if self.val_ratio > 0 else None
-            self.y_test = self.y_test[:, :self.n_radius_bins] if self.test_ratio > 0 else None
+        # if self.filterType == 'CAP' and self.ptype == 'gas':
+        #     self.n_radius_bins = self.n_radius_bins//2
+        #     self.r_bins = self.r_bins[:self.n_radius_bins]
+        #     self.y_train = self.y_train[:, :self.n_radius_bins]
+        #     self.y_val = self.y_val[:, :self.n_radius_bins] if self.val_ratio > 0 else None
+        #     self.y_test = self.y_test[:, :self.n_radius_bins] if self.test_ratio > 0 else None
 
         self.is_data_loaded = True
         print(f"Data loaded:")
@@ -299,7 +299,7 @@ class GPTrainer:
             X_eval = self.X_train
             y_eval = self.y_train
             print("Evaluating on training set...")
-        elif mode == 'test' and self.X_val is None:
+        elif mode == 'test':
             X_eval = self.X_test
             y_eval = self.y_test
             print("Evaluating on test set...")
@@ -351,7 +351,7 @@ class GPTrainer:
         Returns:
             Tuple of (pred_means, pred_vars) with shapes [n_radius_bins, n_samples]
         """
-        if not self.is_trained:
+        if not self.is_trained and not self.is_pretrained_loaded:
             raise ValueError("Model must be trained before making predictions. Call train() first.")
         
         pred_means = []

@@ -469,16 +469,23 @@ def create_nn_dataloader(
 
 def create_gp_dataloader(
     sim_indices: List[int],
+    filterType: str = 'CAP',
+    ptype: str = 'gas',
     normalize_features: bool = True,
     log_transform_mass: bool = True,
-    **kwargs
+    **config_kwargs
 ) -> SimulationDataLoader:
     """Create DataLoader optimized for GP training."""
     config = DataLoaderConfig(
         normalize_features=normalize_features,
         log_transform_mass=log_transform_mass,
         shuffle=False,  # GPs don't need shuffling
-        **kwargs
+        **config_kwargs
     )
     
-    return SimulationDataLoader(sim_indices=sim_indices, config=config)
+    return SimulationDataLoader(
+        sim_indices=sim_indices, 
+        config=config,
+        filterType=filterType,
+        ptype=ptype
+    )

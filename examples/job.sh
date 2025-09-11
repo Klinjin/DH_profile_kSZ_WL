@@ -26,4 +26,4 @@ source /global/u1/l/lindajin/virtualenvs/env1/bin/activate
 cd /pscratch/sd/l/lindajin/DH_profile_kSZ_WL
 
 # Run CPU-optimized physics-informed neural network training
-python -u examples/train_physics_nn_cpu.py
+python -u examples/physics_neural_demo.py

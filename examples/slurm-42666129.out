@@ -1,4 +1,0 @@
-Traceback (most recent call last):
-  File "/pscratch/sd/l/lindajin/DH_profile_kSZ_WL/examples/train_physics_nn_cpu.py", line 26, in <module>
-    from src.models.physics_neural_trainer import train_physics_neural_emulator, PhysicsNeuralTrainer
-ModuleNotFoundError: No module named 'src'

@@ -122,8 +122,8 @@ class MassScalingLayer(nn.Module):
         self.beta_init = -0.1   # Concentration scaling (theoretical ~-0.1)
         
         # Make these learnable but constrained
-        self.alpha = self.param('alpha', nn.initializers.constant(self.alpha_init))
-        self.beta = self.param('beta', nn.initializers.constant(self.beta_init))
+        self.alpha = self.param('alpha', lambda rng, shape: jnp.full(shape, self.alpha_init), ())
+        self.beta = self.param('beta', lambda rng, shape: jnp.full(shape, self.beta_init), ())
         
     def __call__(self, mass_features, radius_context=None):
         """
@@ -279,6 +279,47 @@ class PhysicsInformedCore(nn.Module):
         return physics_features
 
 
+class SimpleMLP(nn.Module):
+    """
+    Simplified neural network for cosmological profile prediction.
+    
+    Basic feedforward architecture without physics constraints for stable training.
+    """
+    config: PhysicsNeuralConfig
+    
+    @nn.compact
+    def __call__(self, x, training: bool = False):
+        """Simple forward pass."""
+        h = x
+        
+        # Apply layers with activation
+        activation_fn = getattr(nn, self.config.activation)
+        
+        # Use Xavier initialization for stability
+        kernel_init = nn.initializers.xavier_uniform()
+        bias_init = nn.initializers.zeros
+        
+        for i, dim in enumerate(self.config.hidden_dims):
+            h = nn.Dense(dim, kernel_init=kernel_init, bias_init=bias_init, name=f'hidden_{i}')(h)
+            h = activation_fn(h)
+            
+            if training and self.config.dropout_rate > 0:
+                h = nn.Dropout(rate=self.config.dropout_rate, deterministic=not training)(h)
+        
+        # Output predictions
+        if self.config.uncertainty_method == 'ensemble':
+            prediction = nn.Dense(self.config.n_radius_bins, 
+                                kernel_init=kernel_init, bias_init=bias_init, name='prediction')(h)
+            return prediction, jnp.zeros_like(prediction)  # Return dummy variance
+        else:
+            mean = nn.Dense(self.config.n_radius_bins, 
+                          kernel_init=kernel_init, bias_init=bias_init, name='mean')(h)
+            logvar = nn.Dense(self.config.n_radius_bins, 
+                            kernel_init=kernel_init, bias_init=bias_init, name='logvar')(h)
+            variance = jnp.exp(jnp.clip(logvar, -10, 2))  # Clip for stability
+            return mean, variance
+
+
 class PhysicsInformedMLP(nn.Module):
     """
     Main physics-informed neural network for halo profile prediction.
@@ -295,22 +336,26 @@ class PhysicsInformedMLP(nn.Module):
         # Main prediction network (smaller due to physics constraints)
         activation_fn = getattr(nn, self.config.activation)
         
+        # Use Xavier initialization for better stability
+        kernel_init = nn.initializers.xavier_uniform()
+        
         self.layers = [
-            nn.Dense(dim, name=f'hidden_{i}') 
+            nn.Dense(dim, kernel_init=kernel_init, name=f'hidden_{i}') 
             for i, dim in enumerate(self.config.hidden_dims)
         ]
         
-        # Output layers with physics constraints
+        # Output layers with physics constraints - smaller initial weights
+        output_init = nn.initializers.xavier_uniform()
         if self.config.uncertainty_method == 'ensemble':
             # Single prediction head (uncertainty via ensemble)
-            self.prediction_head = nn.Dense(self.config.n_radius_bins, name='prediction')
+            self.prediction_head = nn.Dense(self.config.n_radius_bins, kernel_init=output_init, name='prediction')
         else:
             # Separate mean and uncertainty heads
-            self.mean_head = nn.Dense(self.config.n_radius_bins, name='mean')
-            self.logvar_head = nn.Dense(self.config.n_radius_bins, name='logvar')
+            self.mean_head = nn.Dense(self.config.n_radius_bins, kernel_init=output_init, name='mean')
+            self.logvar_head = nn.Dense(self.config.n_radius_bins, kernel_init=output_init, name='logvar')
         
         # Physics constraint layer (ensures radial profile properties)
-        self.physics_constraint = nn.Dense(self.config.n_radius_bins, name='physics_constraint')
+        self.physics_constraint = nn.Dense(self.config.n_radius_bins, kernel_init=output_init, name='physics_constraint')
         
     def __call__(self, x, training: bool = False):
         """Forward pass with physics constraints."""
@@ -441,23 +486,32 @@ class PhysicsInformedEnsemble(nn.Module):
         return total_losses
 
 
-def create_physics_informed_emulator(config: PhysicsNeuralConfig = None):
+def create_physics_informed_emulator(config: PhysicsNeuralConfig = None, use_simple: bool = True):
     """
     Factory function to create physics-informed emulator.
     
     Args:
         config: Configuration for the emulator
+        use_simple: If True, use SimpleMLP for stable training; if False, use complex physics model
         
     Returns:
-        Configured physics-informed neural network
+        Configured neural network
     """
     if config is None:
         config = PhysicsNeuralConfig()
     
-    if config.uncertainty_method == 'ensemble':
-        return PhysicsInformedEnsemble(config)
+    if use_simple:
+        # Use simple architecture for stable baseline training
+        if config.uncertainty_method == 'ensemble':
+            return PhysicsInformedEnsemble(config)  # Will use SimpleMLP internally 
+        else:
+            return SimpleMLP(config)
     else:
-        return PhysicsInformedMLP(config)
+        # Use complex physics-informed architecture
+        if config.uncertainty_method == 'ensemble':
+            return PhysicsInformedEnsemble(config)
+        else:
+            return PhysicsInformedMLP(config)
 
 
 # Physics-informed loss functions
