@@ -10,7 +10,7 @@ from sbi.utils.user_input_checks import (
     process_simulator,
 )
 
-from GP_dataloader import *
+from src.data.profile_loader import *
 
 import argparse
 

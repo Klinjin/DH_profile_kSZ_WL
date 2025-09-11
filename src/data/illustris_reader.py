@@ -14,8 +14,8 @@ import MAS_library as MASL
 from mpi4py import MPI
 from numba import njit, prange
 import pickle
-from filter_utils import *
-from mask_utils import *
+from src.utils.filters import *
+from src.utils.masks import *
 import matplotlib
 
 #### 3D density field and power spectrum utils ####

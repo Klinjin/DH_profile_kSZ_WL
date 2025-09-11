@@ -1,4 +1,4 @@
-from illustris_halo_profile_reader import *
+from src.data.illustris_reader import *
 
 import sys
 

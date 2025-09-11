@@ -99,7 +99,105 @@ def load_simulation_data(sim_indices, filterType='CAP', ptype='gas',
     if include_params:
         result.append(jnp.array(param_halos))
     if include_pk:
+        # Ensure k_vals maintains array structure even for single simulation
+        if len(k_vals) == 1:
+            k_vals = k_vals[0]  # Extract the k array, not make it scalar
         result.extend([jnp.array(k_vals), jnp.array(pkratio_halos)])
+        
+    return tuple(result)
+
+
+def load_simulation_mean_profiles(sim_indices, filterType='CAP', ptype='gas',
+                                include_params=True, include_mass=True, include_pk=True, aggregate_func='mean'):
+    """
+    Load simulation data with mean profiles per simulation.
+    
+    This function returns mean profiles for each simulation instead of all individual
+    halo profiles, resulting in shape (n_sims, n_bins) instead of (n_halos*n_sims, n_bins).
+    
+    Args:
+        sim_indices: List of simulation indices to load
+        filterType: Filter type ('CAP', 'cumulative', 'dsigma')
+        ptype: Particle type ('gas', 'dm', 'star', 'bh', 'total', 'baryon')
+        include_params: Whether to include cosmological parameters
+        include_pk: Whether to include power spectrum ratios
+        aggregate_func: Aggregation function ('mean', 'median', 'std')
+    
+    Returns:
+        Tuple containing (r_bins, mean_profiles, [params], [k], [pk_ratios])
+        - mean_profiles: shape (n_sims, n_bins) - one profile per simulation
+        - params: shape (n_sims, n_params) if included
+        - pk_ratios: shape (n_sims, n_k) if included
+    """
+    # Validate inputs
+    filterType = validate_filter_type(filterType)
+    ptype = validate_particle_type(ptype)
+    
+    print(f'Getting mean {ptype} profiles with {filterType} filter for {len(sim_indices)} simulations...')
+    
+    # Initialize output containers
+    mean_profiles = []
+    param_sims = [] if include_params else None
+    pkratio_sims = [] if include_pk else None
+    mass_halos = [] if include_mass else None
+    k_vals = None
+    
+    for i, sim_id in enumerate(sim_indices):
+        # Load profile data
+        profile_file = get_profile_file_path(sim_id)
+        Henry_profiles_sim = np.load(profile_file)
+        
+        r_bins = Henry_profiles_sim['r_bins']
+        [m_min, m_max] = Henry_profiles_sim['m_halos_range']
+        
+        # Extract profiles based on filter type
+        filter_idx = FILTER_INDICES[filterType]
+        Henry_profiles = Henry_profiles_sim['profiles'][filter_idx]
+        profiles_g, profiles_m, profiles_s, profiles_bh = Henry_profiles
+        
+        # Select particle type
+        profiles = _select_particle_profiles(profiles_g, profiles_m, profiles_s, profiles_bh, ptype)
+        
+        # Compute aggregated profile for this simulation
+        if aggregate_func == 'mean':
+            agg_profile = np.mean(profiles, axis=0)
+        elif aggregate_func == 'median':
+            agg_profile = np.median(profiles, axis=0)
+        elif aggregate_func == 'std':
+            agg_profile = np.std(profiles, axis=0)
+        else:
+            raise ValueError(f"Unknown aggregate_func: {aggregate_func}. Use 'mean', 'median', or 'std'")
+        
+        mean_profiles.append(agg_profile)
+        if include_mass:
+            mass_halos.append(np.mean([m_min, m_max]))
+        
+        # Load additional data if requested
+        if include_params:
+            param_sim = getParams(sim_id)
+            param_sims.append(param_sim)
+                
+        if include_pk:
+            k, PkRatio = getPkRatio(sim_id)
+            if k_vals is None:
+                k_vals = k
+            pkratio_sims.append(PkRatio[0])  # Take first (should be same for all halos in sim)
+    
+    # Print completion message
+    print(f'Finished getting mean profiles from {len(mean_profiles)} simulations.')
+    print(f'Output shape: ({len(mean_profiles)}, {len(r_bins)}) vs individual halo shape would be (n_halos*{len(sim_indices)}, {len(r_bins)})')
+    
+    # Prepare return values
+    result = [jnp.array(r_bins), jnp.array(mean_profiles)]
+    if include_mass:
+        result.append(jnp.array(mass_halos))
+    if include_params:
+        result.append(jnp.array(param_sims))
+    if include_pk:
+        # Ensure k_vals maintains array structure
+        if len(k_vals) == 1:
+            k_vals = k_vals[0]  # Extract the k array, not make it scalar
+        result.extend([jnp.array(k_vals), jnp.array(pkratio_sims)])
         
     return tuple(result)
 
@@ -209,8 +307,8 @@ def getPkRatio(sim_indices):
         P_dm = Henry_Pk_sim['P_dm']
         P_tot= Henry_Pk_sim['P_tot']
 
-        k_vals.append(k)
-        Pk_ratios.append((PX_dm_tot*jnp.sqrt(P_tot)/jnp.sqrt(P_dm)))
+        k_vals.append(k[k<10])  # Keep k < 10 h/Mpc
+        Pk_ratios.append((PX_dm_tot*jnp.sqrt(P_tot)/jnp.sqrt(P_dm))[k<10])
 
     return jnp.array(k_vals), jnp.array(Pk_ratios)
 
