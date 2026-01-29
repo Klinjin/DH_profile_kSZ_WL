@@ -1,0 +1,18 @@
+Training without cosmological parameters
+
+=== Data Loading Debug ===
+Loaded ksz_data shape: (15, 921600)
+Loaded ptot_data shape: (1024, 118)
+Include cosmo params: False
+
+Final configuration:
+  n_samples: 1024
+  n_features_per_sample: 900
+  Input dimension: 13500
+  Output dimension: 118
+=========================
+
+Input normalization: mean=-0.0892, std=82.3735
+Target normalization: mean=0.8890, std=0.1130
+Dataset split: 716 train, 154 val, 154 test
+Sanity Checking: |          | 0/? [00:00<?, ?it/s]                                                  

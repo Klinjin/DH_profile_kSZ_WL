@@ -1,0 +1,745 @@
+=== JOB STARTED ===
+Job ID: 43011455
+Node: nid005623
+Date: Tue 23 Sep 2025 01:09:55 AM PDT
+Working dir: /pscratch/sd/l/lindajin/DH_profile_kSZ_WL/examples
+Loading environment...
+Python: /global/u1/l/lindajin/virtualenvs/env1/bin/python
+Python version: Python 3.11.7
+Changed to: /pscratch/sd/l/lindajin/DH_profile_kSZ_WL
+=== TESTING BASIC FUNCTIONALITY ===
+JAX configured for CPU execution: [CpuDevice(id=0)]
+JAX devices: [CpuDevice(id=0)]
+Using device: TFRT_CPU_0
+JAX devices: [CpuDevice(id=0)]
+Using device: TFRT_CPU_0
+✅ Basic import works
+=== RUNNING MINIMAL TEST ===
+JAX configured for CPU execution: [CpuDevice(id=0)]
+JAX devices: [CpuDevice(id=0)]
+Using device: TFRT_CPU_0
+JAX devices: [CpuDevice(id=0)]
+Using device: TFRT_CPU_0
+🚀 Real GP Coverage Test
+============================================================
+Testing 2 simulations with GP model: GPTrainer_092225_1900_CAP_gas
+MCMC: 50 samples, 10 burn-in
+Parameters to test: 6
+Mode: Full inference (cosmological parameters + mass + pk_ratio)
+Read 35 parameters from data/SB35_param_minmax.csv
+
+🔄 Testing GP model: GPTrainer_092225_1900_CAP_gas
+   Loading GP trainer and getting test indices...
+GPTrainer initialized:
+  - Total sims: 1024
+  - Filter: CAP, Particle: gas
+  - Save dir: /pscratch/sd/l/lindajin/DH_profile_kSZ_WL/trained_gp_models/GPTrainer_092325_0112_CAP_gas
+Loading training data...
+Loading data for 1024 simulations...
+Getting mean gas profiles with CAP filter for 1024 simulations...
+Finished getting mean profiles from 1024 simulations.
+Output shape: (1024, 21)
+Raw data loaded:
+  - Profiles: (1024, 21)
+  - Masses: (1024,)
+  - Params: (1024, 35)
+  - PkRatio: (1024, 79)
+Applying data transformations...
+Log mass range: [12.70, 14.53]
+✅ Features normalized (zero mean, unit variance)
+Final data shapes:
+  - Features: (1024, 115)
+  - Targets: (1024, 21)
+Creating train/validation/test splits...
+Split created:
+  - Train: 716 samples (69.9%)
+  - Val:   102 samples (10.0%)
+  - Test:  206 samples (20.1%)
+✅ DataLoader initialized:
+  - Dataset size: 1024 samples, 115 features
+  - Train/Val/Test: 716/102/206
+  - Batch size: 128
+Data loaded:
+  - Train: X=(716, 115), y=(716, 21)
+  - Val: X=(102, 115), y=(102, 21)
+  - Test: X=(206, 115), y=(206, 21)
+  - Radius bins: 21
+
+=== Loading GP from /pscratch/sd/l/lindajin/DH_profile_kSZ_WL/trained_gp_models/GPTrainer_092225_1900_CAP_gas ===
+⚠️  Defined train_test_val_split unmatched with loaded pretrained model, changed to loaded model with sim_indices=1024, split=[0.7, 0.2, 0.1], filterType=CAP, ptype=gas
+Loading training data...
+Loading data for 1024 simulations...
+Getting mean gas profiles with CAP filter for 1024 simulations...
+Finished getting mean profiles from 1024 simulations.
+Output shape: (1024, 21)
+Raw data loaded:
+  - Profiles: (1024, 21)
+  - Masses: (1024,)
+  - Params: (1024, 35)
+  - PkRatio: (1024, 79)
+Applying data transformations...
+Log mass range: [12.70, 14.53]
+✅ Features normalized (zero mean, unit variance)
+Final data shapes:
+  - Features: (1024, 115)
+  - Targets: (1024, 21)
+Creating train/validation/test splits...
+Split created:
+  - Train: 716 samples (69.9%)
+  - Val:   102 samples (10.0%)
+  - Test:  206 samples (20.1%)
+✅ DataLoader initialized:
+  - Dataset size: 1024 samples, 115 features
+  - Train/Val/Test: 716/102/206
+  - Batch size: 128
+Data loaded:
+  - Train: X=(716, 115), y=(716, 21)
+  - Val: X=(102, 115), y=(102, 21)
+  - Test: X=(206, 115), y=(206, 21)
+  - Radius bins: 21
+Loaded 21 trained models
+   ✅ Loaded GP trainer with 206 test simulations available
+   Using GP test indices: 2 simulations
+   Running batch inference on test simulations...
+Running batch inference on 2 simulations
+Processing simulation 513 (1/2)
+Getting mean gas profiles with CAP filter for 1 simulations...
+Finished getting mean profiles from 1 simulations.
+Output shape: (1, 21)
+Read 35 parameters from data/SB35_param_minmax.csv
+GPTrainer initialized:
+  - Total sims: 1024
+  - Filter: CAP, Particle: gas
+  - Save dir: /pscratch/sd/l/lindajin/DH_profile_kSZ_WL/trained_gp_models/GPTrainer_092325_0112_CAP_gas
+Loading training data...
+Loading data for 1024 simulations...
+Getting mean gas profiles with CAP filter for 1024 simulations...
+Finished getting mean profiles from 1024 simulations.
+Output shape: (1024, 21)
+Raw data loaded:
+  - Profiles: (1024, 21)
+  - Masses: (1024,)
+  - Params: (1024, 35)
+  - PkRatio: (1024, 79)
+Applying data transformations...
+Log mass range: [12.70, 14.53]
+✅ Features normalized (zero mean, unit variance)
+Final data shapes:
+  - Features: (1024, 115)
+  - Targets: (1024, 21)
+Creating train/validation/test splits...
+Split created:
+  - Train: 716 samples (69.9%)
+  - Val:   102 samples (10.0%)
+  - Test:  206 samples (20.1%)
+✅ DataLoader initialized:
+  - Dataset size: 1024 samples, 115 features
+  - Train/Val/Test: 716/102/206
+  - Batch size: 128
+Data loaded:
+  - Train: X=(716, 115), y=(716, 21)
+  - Val: X=(102, 115), y=(102, 21)
+  - Test: X=(206, 115), y=(206, 21)
+  - Radius bins: 21
+
+=== Loading GP from /pscratch/sd/l/lindajin/DH_profile_kSZ_WL/trained_gp_models/GPTrainer_092225_1900_CAP_gas/ ===
+⚠️  Defined train_test_val_split unmatched with loaded pretrained model, changed to loaded model with sim_indices=1024, split=[0.7, 0.2, 0.1], filterType=CAP, ptype=gas
+Loading training data...
+Loading data for 1024 simulations...
+Getting mean gas profiles with CAP filter for 1024 simulations...
+Finished getting mean profiles from 1024 simulations.
+Output shape: (1024, 21)
+Raw data loaded:
+  - Profiles: (1024, 21)
+  - Masses: (1024,)
+  - Params: (1024, 35)
+  - PkRatio: (1024, 79)
+Applying data transformations...
+Log mass range: [12.70, 14.53]
+✅ Features normalized (zero mean, unit variance)
+Final data shapes:
+  - Features: (1024, 115)
+  - Targets: (1024, 21)
+Creating train/validation/test splits...
+Split created:
+  - Train: 716 samples (69.9%)
+  - Val:   102 samples (10.0%)
+  - Test:  206 samples (20.1%)
+✅ DataLoader initialized:
+  - Dataset size: 1024 samples, 115 features
+  - Train/Val/Test: 716/102/206
+  - Batch size: 128
+Data loaded:
+  - Train: X=(716, 115), y=(716, 21)
+  - Val: X=(102, 115), y=(102, 21)
+  - Test: X=(206, 115), y=(206, 21)
+  - Radius bins: 21
+Loaded 21 trained models
+Processing simulation 330 (2/2)
+Getting mean gas profiles with CAP filter for 1 simulations...
+Finished getting mean profiles from 1 simulations.
+Output shape: (1, 21)
+Read 35 parameters from data/SB35_param_minmax.csv
+GPTrainer initialized:
+  - Total sims: 1024
+  - Filter: CAP, Particle: gas
+  - Save dir: /pscratch/sd/l/lindajin/DH_profile_kSZ_WL/trained_gp_models/GPTrainer_092325_0113_CAP_gas
+Loading training data...
+Loading data for 1024 simulations...
+Getting mean gas profiles with CAP filter for 1024 simulations...
+Finished getting mean profiles from 1024 simulations.
+Output shape: (1024, 21)
+Raw data loaded:
+  - Profiles: (1024, 21)
+  - Masses: (1024,)
+  - Params: (1024, 35)
+  - PkRatio: (1024, 79)
+Applying data transformations...
+Log mass range: [12.70, 14.53]
+✅ Features normalized (zero mean, unit variance)
+Final data shapes:
+  - Features: (1024, 115)
+  - Targets: (1024, 21)
+Creating train/validation/test splits...
+Split created:
+  - Train: 716 samples (69.9%)
+  - Val:   102 samples (10.0%)
+  - Test:  206 samples (20.1%)
+✅ DataLoader initialized:
+  - Dataset size: 1024 samples, 115 features
+  - Train/Val/Test: 716/102/206
+  - Batch size: 128
+Data loaded:
+  - Train: X=(716, 115), y=(716, 21)
+  - Val: X=(102, 115), y=(102, 21)
+  - Test: X=(206, 115), y=(206, 21)
+  - Radius bins: 21
+
+=== Loading GP from /pscratch/sd/l/lindajin/DH_profile_kSZ_WL/trained_gp_models/GPTrainer_092225_1900_CAP_gas/ ===
+⚠️  Defined train_test_val_split unmatched with loaded pretrained model, changed to loaded model with sim_indices=1024, split=[0.7, 0.2, 0.1], filterType=CAP, ptype=gas
+Loading training data...
+Loading data for 1024 simulations...
+Getting mean gas profiles with CAP filter for 1024 simulations...
+Finished getting mean profiles from 1024 simulations.
+Output shape: (1024, 21)
+Raw data loaded:
+  - Profiles: (1024, 21)
+  - Masses: (1024,)
+  - Params: (1024, 35)
+  - PkRatio: (1024, 79)
+Applying data transformations...
+Log mass range: [12.70, 14.53]
+✅ Features normalized (zero mean, unit variance)
+Final data shapes:
+  - Features: (1024, 115)
+  - Targets: (1024, 21)
+Creating train/validation/test splits...
+Split created:
+  - Train: 716 samples (69.9%)
+  - Val:   102 samples (10.0%)
+  - Test:  206 samples (20.1%)
+✅ DataLoader initialized:
+  - Dataset size: 1024 samples, 115 features
+  - Train/Val/Test: 716/102/206
+  - Batch size: 128
+Data loaded:
+  - Train: X=(716, 115), y=(716, 21)
+  - Val: X=(102, 115), y=(102, 21)
+  - Test: X=(206, 115), y=(206, 21)
+  - Radius bins: 21
+Loaded 21 trained models
+Batch inference completed: 2/2 simulations successful
+   ✅ Batch inference completed: 2/2 successful
+
+📊 Computing coverage statistics...
+   • Successful inferences: 2
+   Creating coverage plot...
+💾 Coverage plot saved: inference_results/coverage_plot_GPTrainer_092225_1900_CAP_gas_20250923_011506.png
+   Saving results...
+💾 Coverage results saved:
+   • Data: inference_results/coverage_test_results_20250923_011508.pkl
+   • Summary: inference_results/coverage_test_summary_20250923_011508.md
+   ✅ Coverage test completed!
+   • Successful inferences: 2/2
+   • Mean absolute deviation: 0.474
+   • Coverage plot saved: inference_results/coverage_plot_GPTrainer_092225_1900_CAP_gas_20250923_011506.png
+   • Assessment: ❌ POORLY CALIBRATED
+
+✅ Coverage test completed!
+   • Results saved to: inference_results
+✅ Minimal test successful
+=== RUNNING FULL TEST ===
+JAX configured for CPU execution: [CpuDevice(id=0)]
+JAX devices: [CpuDevice(id=0)]
+Using device: TFRT_CPU_0
+JAX devices: [CpuDevice(id=0)]
+Using device: TFRT_CPU_0
+🚀 Real GP Coverage Test
+============================================================
+Testing 5 simulations with GP model: GPTrainer_092225_1900_CAP_gas
+MCMC: 500 samples, 100 burn-in
+Parameters to test: 6
+Mode: Full inference (cosmological parameters + mass + pk_ratio)
+Read 35 parameters from data/SB35_param_minmax.csv
+
+🔄 Testing GP model: GPTrainer_092225_1900_CAP_gas
+   Loading GP trainer and getting test indices...
+GPTrainer initialized:
+  - Total sims: 1024
+  - Filter: CAP, Particle: gas
+  - Save dir: /pscratch/sd/l/lindajin/DH_profile_kSZ_WL/trained_gp_models/GPTrainer_092325_0115_CAP_gas
+Loading training data...
+Loading data for 1024 simulations...
+Getting mean gas profiles with CAP filter for 1024 simulations...
+Finished getting mean profiles from 1024 simulations.
+Output shape: (1024, 21)
+Raw data loaded:
+  - Profiles: (1024, 21)
+  - Masses: (1024,)
+  - Params: (1024, 35)
+  - PkRatio: (1024, 79)
+Applying data transformations...
+Log mass range: [12.70, 14.53]
+✅ Features normalized (zero mean, unit variance)
+Final data shapes:
+  - Features: (1024, 115)
+  - Targets: (1024, 21)
+Creating train/validation/test splits...
+Split created:
+  - Train: 716 samples (69.9%)
+  - Val:   102 samples (10.0%)
+  - Test:  206 samples (20.1%)
+✅ DataLoader initialized:
+  - Dataset size: 1024 samples, 115 features
+  - Train/Val/Test: 716/102/206
+  - Batch size: 128
+Data loaded:
+  - Train: X=(716, 115), y=(716, 21)
+  - Val: X=(102, 115), y=(102, 21)
+  - Test: X=(206, 115), y=(206, 21)
+  - Radius bins: 21
+
+=== Loading GP from /pscratch/sd/l/lindajin/DH_profile_kSZ_WL/trained_gp_models/GPTrainer_092225_1900_CAP_gas ===
+⚠️  Defined train_test_val_split unmatched with loaded pretrained model, changed to loaded model with sim_indices=1024, split=[0.7, 0.2, 0.1], filterType=CAP, ptype=gas
+Loading training data...
+Loading data for 1024 simulations...
+Getting mean gas profiles with CAP filter for 1024 simulations...
+Finished getting mean profiles from 1024 simulations.
+Output shape: (1024, 21)
+Raw data loaded:
+  - Profiles: (1024, 21)
+  - Masses: (1024,)
+  - Params: (1024, 35)
+  - PkRatio: (1024, 79)
+Applying data transformations...
+Log mass range: [12.70, 14.53]
+✅ Features normalized (zero mean, unit variance)
+Final data shapes:
+  - Features: (1024, 115)
+  - Targets: (1024, 21)
+Creating train/validation/test splits...
+Split created:
+  - Train: 716 samples (69.9%)
+  - Val:   102 samples (10.0%)
+  - Test:  206 samples (20.1%)
+✅ DataLoader initialized:
+  - Dataset size: 1024 samples, 115 features
+  - Train/Val/Test: 716/102/206
+  - Batch size: 128
+Data loaded:
+  - Train: X=(716, 115), y=(716, 21)
+  - Val: X=(102, 115), y=(102, 21)
+  - Test: X=(206, 115), y=(206, 21)
+  - Radius bins: 21
+Loaded 21 trained models
+   ✅ Loaded GP trainer with 206 test simulations available
+   Using GP test indices: 5 simulations
+   Running batch inference on test simulations...
+Running batch inference on 5 simulations
+Processing simulation 513 (1/5)
+Getting mean gas profiles with CAP filter for 1 simulations...
+Finished getting mean profiles from 1 simulations.
+Output shape: (1, 21)
+Read 35 parameters from data/SB35_param_minmax.csv
+GPTrainer initialized:
+  - Total sims: 1024
+  - Filter: CAP, Particle: gas
+  - Save dir: /pscratch/sd/l/lindajin/DH_profile_kSZ_WL/trained_gp_models/GPTrainer_092325_0115_CAP_gas
+Loading training data...
+Loading data for 1024 simulations...
+Getting mean gas profiles with CAP filter for 1024 simulations...
+Finished getting mean profiles from 1024 simulations.
+Output shape: (1024, 21)
+Raw data loaded:
+  - Profiles: (1024, 21)
+  - Masses: (1024,)
+  - Params: (1024, 35)
+  - PkRatio: (1024, 79)
+Applying data transformations...
+Log mass range: [12.70, 14.53]
+✅ Features normalized (zero mean, unit variance)
+Final data shapes:
+  - Features: (1024, 115)
+  - Targets: (1024, 21)
+Creating train/validation/test splits...
+Split created:
+  - Train: 716 samples (69.9%)
+  - Val:   102 samples (10.0%)
+  - Test:  206 samples (20.1%)
+✅ DataLoader initialized:
+  - Dataset size: 1024 samples, 115 features
+  - Train/Val/Test: 716/102/206
+  - Batch size: 128
+Data loaded:
+  - Train: X=(716, 115), y=(716, 21)
+  - Val: X=(102, 115), y=(102, 21)
+  - Test: X=(206, 115), y=(206, 21)
+  - Radius bins: 21
+
+=== Loading GP from /pscratch/sd/l/lindajin/DH_profile_kSZ_WL/trained_gp_models/GPTrainer_092225_1900_CAP_gas/ ===
+⚠️  Defined train_test_val_split unmatched with loaded pretrained model, changed to loaded model with sim_indices=1024, split=[0.7, 0.2, 0.1], filterType=CAP, ptype=gas
+Loading training data...
+Loading data for 1024 simulations...
+Getting mean gas profiles with CAP filter for 1024 simulations...
+Finished getting mean profiles from 1024 simulations.
+Output shape: (1024, 21)
+Raw data loaded:
+  - Profiles: (1024, 21)
+  - Masses: (1024,)
+  - Params: (1024, 35)
+  - PkRatio: (1024, 79)
+Applying data transformations...
+Log mass range: [12.70, 14.53]
+✅ Features normalized (zero mean, unit variance)
+Final data shapes:
+  - Features: (1024, 115)
+  - Targets: (1024, 21)
+Creating train/validation/test splits...
+Split created:
+  - Train: 716 samples (69.9%)
+  - Val:   102 samples (10.0%)
+  - Test:  206 samples (20.1%)
+✅ DataLoader initialized:
+  - Dataset size: 1024 samples, 115 features
+  - Train/Val/Test: 716/102/206
+  - Batch size: 128
+Data loaded:
+  - Train: X=(716, 115), y=(716, 21)
+  - Val: X=(102, 115), y=(102, 21)
+  - Test: X=(206, 115), y=(206, 21)
+  - Radius bins: 21
+Loaded 21 trained models
+Processing simulation 330 (2/5)
+Getting mean gas profiles with CAP filter for 1 simulations...
+Finished getting mean profiles from 1 simulations.
+Output shape: (1, 21)
+Read 35 parameters from data/SB35_param_minmax.csv
+GPTrainer initialized:
+  - Total sims: 1024
+  - Filter: CAP, Particle: gas
+  - Save dir: /pscratch/sd/l/lindajin/DH_profile_kSZ_WL/trained_gp_models/GPTrainer_092325_0127_CAP_gas
+Loading training data...
+Loading data for 1024 simulations...
+Getting mean gas profiles with CAP filter for 1024 simulations...
+Finished getting mean profiles from 1024 simulations.
+Output shape: (1024, 21)
+Raw data loaded:
+  - Profiles: (1024, 21)
+  - Masses: (1024,)
+  - Params: (1024, 35)
+  - PkRatio: (1024, 79)
+Applying data transformations...
+Log mass range: [12.70, 14.53]
+✅ Features normalized (zero mean, unit variance)
+Final data shapes:
+  - Features: (1024, 115)
+  - Targets: (1024, 21)
+Creating train/validation/test splits...
+Split created:
+  - Train: 716 samples (69.9%)
+  - Val:   102 samples (10.0%)
+  - Test:  206 samples (20.1%)
+✅ DataLoader initialized:
+  - Dataset size: 1024 samples, 115 features
+  - Train/Val/Test: 716/102/206
+  - Batch size: 128
+Data loaded:
+  - Train: X=(716, 115), y=(716, 21)
+  - Val: X=(102, 115), y=(102, 21)
+  - Test: X=(206, 115), y=(206, 21)
+  - Radius bins: 21
+
+=== Loading GP from /pscratch/sd/l/lindajin/DH_profile_kSZ_WL/trained_gp_models/GPTrainer_092225_1900_CAP_gas/ ===
+⚠️  Defined train_test_val_split unmatched with loaded pretrained model, changed to loaded model with sim_indices=1024, split=[0.7, 0.2, 0.1], filterType=CAP, ptype=gas
+Loading training data...
+Loading data for 1024 simulations...
+Getting mean gas profiles with CAP filter for 1024 simulations...
+Finished getting mean profiles from 1024 simulations.
+Output shape: (1024, 21)
+Raw data loaded:
+  - Profiles: (1024, 21)
+  - Masses: (1024,)
+  - Params: (1024, 35)
+  - PkRatio: (1024, 79)
+Applying data transformations...
+Log mass range: [12.70, 14.53]
+✅ Features normalized (zero mean, unit variance)
+Final data shapes:
+  - Features: (1024, 115)
+  - Targets: (1024, 21)
+Creating train/validation/test splits...
+Split created:
+  - Train: 716 samples (69.9%)
+  - Val:   102 samples (10.0%)
+  - Test:  206 samples (20.1%)
+✅ DataLoader initialized:
+  - Dataset size: 1024 samples, 115 features
+  - Train/Val/Test: 716/102/206
+  - Batch size: 128
+Data loaded:
+  - Train: X=(716, 115), y=(716, 21)
+  - Val: X=(102, 115), y=(102, 21)
+  - Test: X=(206, 115), y=(206, 21)
+  - Radius bins: 21
+Loaded 21 trained models
+Processing simulation 1018 (3/5)
+Getting mean gas profiles with CAP filter for 1 simulations...
+Finished getting mean profiles from 1 simulations.
+Output shape: (1, 21)
+Read 35 parameters from data/SB35_param_minmax.csv
+GPTrainer initialized:
+  - Total sims: 1024
+  - Filter: CAP, Particle: gas
+  - Save dir: /pscratch/sd/l/lindajin/DH_profile_kSZ_WL/trained_gp_models/GPTrainer_092325_0138_CAP_gas
+Loading training data...
+Loading data for 1024 simulations...
+Getting mean gas profiles with CAP filter for 1024 simulations...
+Finished getting mean profiles from 1024 simulations.
+Output shape: (1024, 21)
+Raw data loaded:
+  - Profiles: (1024, 21)
+  - Masses: (1024,)
+  - Params: (1024, 35)
+  - PkRatio: (1024, 79)
+Applying data transformations...
+Log mass range: [12.70, 14.53]
+✅ Features normalized (zero mean, unit variance)
+Final data shapes:
+  - Features: (1024, 115)
+  - Targets: (1024, 21)
+Creating train/validation/test splits...
+Split created:
+  - Train: 716 samples (69.9%)
+  - Val:   102 samples (10.0%)
+  - Test:  206 samples (20.1%)
+✅ DataLoader initialized:
+  - Dataset size: 1024 samples, 115 features
+  - Train/Val/Test: 716/102/206
+  - Batch size: 128
+Data loaded:
+  - Train: X=(716, 115), y=(716, 21)
+  - Val: X=(102, 115), y=(102, 21)
+  - Test: X=(206, 115), y=(206, 21)
+  - Radius bins: 21
+
+=== Loading GP from /pscratch/sd/l/lindajin/DH_profile_kSZ_WL/trained_gp_models/GPTrainer_092225_1900_CAP_gas/ ===
+⚠️  Defined train_test_val_split unmatched with loaded pretrained model, changed to loaded model with sim_indices=1024, split=[0.7, 0.2, 0.1], filterType=CAP, ptype=gas
+Loading training data...
+Loading data for 1024 simulations...
+Getting mean gas profiles with CAP filter for 1024 simulations...
+Finished getting mean profiles from 1024 simulations.
+Output shape: (1024, 21)
+Raw data loaded:
+  - Profiles: (1024, 21)
+  - Masses: (1024,)
+  - Params: (1024, 35)
+  - PkRatio: (1024, 79)
+Applying data transformations...
+Log mass range: [12.70, 14.53]
+✅ Features normalized (zero mean, unit variance)
+Final data shapes:
+  - Features: (1024, 115)
+  - Targets: (1024, 21)
+Creating train/validation/test splits...
+Split created:
+  - Train: 716 samples (69.9%)
+  - Val:   102 samples (10.0%)
+  - Test:  206 samples (20.1%)
+✅ DataLoader initialized:
+  - Dataset size: 1024 samples, 115 features
+  - Train/Val/Test: 716/102/206
+  - Batch size: 128
+Data loaded:
+  - Train: X=(716, 115), y=(716, 21)
+  - Val: X=(102, 115), y=(102, 21)
+  - Test: X=(206, 115), y=(206, 21)
+  - Radius bins: 21
+Loaded 21 trained models
+Processing simulation 302 (4/5)
+Getting mean gas profiles with CAP filter for 1 simulations...
+Finished getting mean profiles from 1 simulations.
+Output shape: (1, 21)
+Read 35 parameters from data/SB35_param_minmax.csv
+GPTrainer initialized:
+  - Total sims: 1024
+  - Filter: CAP, Particle: gas
+  - Save dir: /pscratch/sd/l/lindajin/DH_profile_kSZ_WL/trained_gp_models/GPTrainer_092325_0150_CAP_gas
+Loading training data...
+Loading data for 1024 simulations...
+Getting mean gas profiles with CAP filter for 1024 simulations...
+Finished getting mean profiles from 1024 simulations.
+Output shape: (1024, 21)
+Raw data loaded:
+  - Profiles: (1024, 21)
+  - Masses: (1024,)
+  - Params: (1024, 35)
+  - PkRatio: (1024, 79)
+Applying data transformations...
+Log mass range: [12.70, 14.53]
+✅ Features normalized (zero mean, unit variance)
+Final data shapes:
+  - Features: (1024, 115)
+  - Targets: (1024, 21)
+Creating train/validation/test splits...
+Split created:
+  - Train: 716 samples (69.9%)
+  - Val:   102 samples (10.0%)
+  - Test:  206 samples (20.1%)
+✅ DataLoader initialized:
+  - Dataset size: 1024 samples, 115 features
+  - Train/Val/Test: 716/102/206
+  - Batch size: 128
+Data loaded:
+  - Train: X=(716, 115), y=(716, 21)
+  - Val: X=(102, 115), y=(102, 21)
+  - Test: X=(206, 115), y=(206, 21)
+  - Radius bins: 21
+
+=== Loading GP from /pscratch/sd/l/lindajin/DH_profile_kSZ_WL/trained_gp_models/GPTrainer_092225_1900_CAP_gas/ ===
+⚠️  Defined train_test_val_split unmatched with loaded pretrained model, changed to loaded model with sim_indices=1024, split=[0.7, 0.2, 0.1], filterType=CAP, ptype=gas
+Loading training data...
+Loading data for 1024 simulations...
+Getting mean gas profiles with CAP filter for 1024 simulations...
+Finished getting mean profiles from 1024 simulations.
+Output shape: (1024, 21)
+Raw data loaded:
+  - Profiles: (1024, 21)
+  - Masses: (1024,)
+  - Params: (1024, 35)
+  - PkRatio: (1024, 79)
+Applying data transformations...
+Log mass range: [12.70, 14.53]
+✅ Features normalized (zero mean, unit variance)
+Final data shapes:
+  - Features: (1024, 115)
+  - Targets: (1024, 21)
+Creating train/validation/test splits...
+Split created:
+  - Train: 716 samples (69.9%)
+  - Val:   102 samples (10.0%)
+  - Test:  206 samples (20.1%)
+✅ DataLoader initialized:
+  - Dataset size: 1024 samples, 115 features
+  - Train/Val/Test: 716/102/206
+  - Batch size: 128
+Data loaded:
+  - Train: X=(716, 115), y=(716, 21)
+  - Val: X=(102, 115), y=(102, 21)
+  - Test: X=(206, 115), y=(206, 21)
+  - Radius bins: 21
+Loaded 21 trained models
+Processing simulation 121 (5/5)
+Getting mean gas profiles with CAP filter for 1 simulations...
+Finished getting mean profiles from 1 simulations.
+Output shape: (1, 21)
+Read 35 parameters from data/SB35_param_minmax.csv
+GPTrainer initialized:
+  - Total sims: 1024
+  - Filter: CAP, Particle: gas
+  - Save dir: /pscratch/sd/l/lindajin/DH_profile_kSZ_WL/trained_gp_models/GPTrainer_092325_0201_CAP_gas
+Loading training data...
+Loading data for 1024 simulations...
+Getting mean gas profiles with CAP filter for 1024 simulations...
+Finished getting mean profiles from 1024 simulations.
+Output shape: (1024, 21)
+Raw data loaded:
+  - Profiles: (1024, 21)
+  - Masses: (1024,)
+  - Params: (1024, 35)
+  - PkRatio: (1024, 79)
+Applying data transformations...
+Log mass range: [12.70, 14.53]
+✅ Features normalized (zero mean, unit variance)
+Final data shapes:
+  - Features: (1024, 115)
+  - Targets: (1024, 21)
+Creating train/validation/test splits...
+Split created:
+  - Train: 716 samples (69.9%)
+  - Val:   102 samples (10.0%)
+  - Test:  206 samples (20.1%)
+✅ DataLoader initialized:
+  - Dataset size: 1024 samples, 115 features
+  - Train/Val/Test: 716/102/206
+  - Batch size: 128
+Data loaded:
+  - Train: X=(716, 115), y=(716, 21)
+  - Val: X=(102, 115), y=(102, 21)
+  - Test: X=(206, 115), y=(206, 21)
+  - Radius bins: 21
+
+=== Loading GP from /pscratch/sd/l/lindajin/DH_profile_kSZ_WL/trained_gp_models/GPTrainer_092225_1900_CAP_gas/ ===
+⚠️  Defined train_test_val_split unmatched with loaded pretrained model, changed to loaded model with sim_indices=1024, split=[0.7, 0.2, 0.1], filterType=CAP, ptype=gas
+Loading training data...
+Loading data for 1024 simulations...
+Getting mean gas profiles with CAP filter for 1024 simulations...
+Finished getting mean profiles from 1024 simulations.
+Output shape: (1024, 21)
+Raw data loaded:
+  - Profiles: (1024, 21)
+  - Masses: (1024,)
+  - Params: (1024, 35)
+  - PkRatio: (1024, 79)
+Applying data transformations...
+Log mass range: [12.70, 14.53]
+✅ Features normalized (zero mean, unit variance)
+Final data shapes:
+  - Features: (1024, 115)
+  - Targets: (1024, 21)
+Creating train/validation/test splits...
+Split created:
+  - Train: 716 samples (69.9%)
+  - Val:   102 samples (10.0%)
+  - Test:  206 samples (20.1%)
+✅ DataLoader initialized:
+  - Dataset size: 1024 samples, 115 features
+  - Train/Val/Test: 716/102/206
+  - Batch size: 128
+Data loaded:
+  - Train: X=(716, 115), y=(716, 21)
+  - Val: X=(102, 115), y=(102, 21)
+  - Test: X=(206, 115), y=(206, 21)
+  - Radius bins: 21
+Loaded 21 trained models
+Batch inference completed: 5/5 simulations successful
+   ✅ Batch inference completed: 5/5 successful
+
+📊 Computing coverage statistics...
+   • Successful inferences: 5
+   Creating coverage plot...
+💾 Coverage plot saved: inference_results/coverage_plot_GPTrainer_092225_1900_CAP_gas_20250923_021319.png
+   Saving results...
+💾 Coverage results saved:
+   • Data: inference_results/coverage_test_results_20250923_021322.pkl
+   • Summary: inference_results/coverage_test_summary_20250923_021322.md
+   ✅ Coverage test completed!
+   • Successful inferences: 5/5
+   • Mean absolute deviation: 0.425
+   • Coverage plot saved: inference_results/coverage_plot_GPTrainer_092225_1900_CAP_gas_20250923_021319.png
+   • Assessment: ❌ POORLY CALIBRATED
+
+✅ Coverage test completed!
+   • Results saved to: inference_results
+Coverage test completed with exit code: 0
+=== JOB COMPLETED ===
+End time: Tue 23 Sep 2025 02:13:23 AM PDT

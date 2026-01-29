@@ -90,6 +90,7 @@ class GPTrainer:
         train_test_val_split: Tuple[float, float, float] = (0.7, 0.3, 0.0),
         filterType: str = 'CAP',
         ptype: str = 'gas',
+        profile_type: str = 'mean',
         save_dir: Optional[str] = None,
     ):
         """
@@ -105,7 +106,9 @@ class GPTrainer:
         self.sim_indices_total = sim_indices_total
         self.filterType = filterType
         self.ptype = ptype
-        self.train_ratio, self.test_ratio, self.val_ratio = train_test_val_split
+        self.profile_type = profile_type
+        self.train_test_val_split = train_test_val_split
+        self.train_ratio, self.test_ratio, self.val_ratio = self.train_test_val_split
         
         # Setup save directory
         if save_dir is None:
@@ -152,10 +155,11 @@ class GPTrainer:
             sim_indices=self.sim_indices_total,
             config=config,
                 filterType=self.filterType,
-            ptype=self.ptype
+            ptype=self.ptype,
+            func=self.profile_type  # Use mean profiles for GP training
         )
         
-        self.train_dl, self.val_dl, self.test_dl = dl.get_dataloaders() # Iterate through batches
+        # self.train_dl, self.val_dl, self.test_dl = dl.get_dataloaders()
 
         self.X_train, self.y_train = dl.get_split_data('train')
         self.X_val, self.y_val = dl.get_split_data('val')
@@ -167,6 +171,7 @@ class GPTrainer:
         self.n_radius_bins = len(self.r_bins)
         self.n_features = self.X_train.shape[1]
         
+        
         # Only train linear small bins if using CAP filter for kSZ
         # if self.filterType == 'CAP' and self.ptype == 'gas':
         #     self.n_radius_bins = self.n_radius_bins//2
@@ -174,6 +179,21 @@ class GPTrainer:
         #     self.y_train = self.y_train[:, :self.n_radius_bins]
         #     self.y_val = self.y_val[:, :self.n_radius_bins] if self.val_ratio > 0 else None
         #     self.y_test = self.y_test[:, :self.n_radius_bins] if self.test_ratio > 0 else None
+
+        # Update training info with data loading metadata
+        self.training_info.update({
+            'sim_indices_total': self.sim_indices_total,
+            'train_test_val_split': self.train_test_val_split,
+            'filterType': self.filterType,
+            'ptype': self.ptype,
+            'save_dir': self.save_dir,
+            'train_indices': dl.train_indices.tolist() if hasattr(dl.train_indices, 'tolist') else dl.train_indices,
+            'val_indices': dl.val_indices.tolist() if hasattr(dl.val_indices, 'tolist') else dl.val_indices,
+            'test_indices': dl.test_indices.tolist() if hasattr(dl.test_indices, 'tolist') else dl.test_indices,
+            'n_radius_bins': self.n_radius_bins,
+            'n_features': self.n_features,
+            'data_loaded_timestamp': datetime.now().isoformat()
+        })
 
         self.is_data_loaded = True
         print(f"Data loaded:")
@@ -247,15 +267,15 @@ class GPTrainer:
         self.trained_params = trained_params
         self.is_trained = True
         
-        self.training_info = {
+        # Update training info with training-specific metadata
+        self.training_info.update({
             'kernel_type': kernel_type,
             'train_time': train_time,
             'maxiter': maxiter,
             'lr': lr,
             'training_losses': training_losses,
-            'n_models': len(trained_models),
-            'timestamp': datetime.now().isoformat()
-        }
+            'training_completed_timestamp': datetime.now().isoformat()
+        })
         
         print(f"Training completed in {train_time:.1f}s")
         
@@ -321,13 +341,15 @@ class GPTrainer:
         # Compute metrics
         metrics = self._compute_metrics(pred_means, pred_vars, y_eval.T)
 
-        # Store test results
-        self.test_results = {
-            'pred_means': pred_means,
-            'pred_vars': pred_vars,
-            'metrics': metrics,
-            'pred_time': pred_time
-        }
+
+        self.training_info.update({
+            'test_results': {
+                'MSE': metrics['mse'],
+                'MAPE': metrics['mape'],
+                'R2': metrics['r2'],
+                'pred_time': pred_time
+            }
+        })
         
         # Generate plots
         if plot:
@@ -470,6 +492,8 @@ class GPTrainer:
         
         # Compute statistics for plotting
         pred_median = np.mean(pred_means, axis=1)
+        pred_lower = np.quantile(pred_means, 0.25, axis=1)
+        pred_upper = np.quantile(pred_means, 0.75, axis=1)
         pred_std = np.mean(np.sqrt(pred_vars), axis=1)
         
         true_median = np.median(y_test_T, axis=1)
@@ -486,12 +510,12 @@ class GPTrainer:
                     color='black', label='Ground Truth')
         
         # Plot predictions
-        plt.errorbar(self.r_bins, pred_median, yerr=pred_std,
+        plt.errorbar(self.r_bins, pred_median, yerr=[pred_median - pred_lower, pred_upper - pred_median],
                     fmt='s', capsize=5, capthick=2, linewidth=2, markersize=6,
                     color='red', label='GP Prediction')
         
         plt.fill_between(self.r_bins, pred_median - pred_std, pred_median + pred_std,
-                        color='red', alpha=0.2, label='GP 1σ Uncertainty')
+                        color='red', alpha=0.2, label='GP 1σ Uncertainty for Median')
         
         plt.yscale('log')
         plt.xlabel('Radius [Mpc/h]', fontsize=14)
@@ -507,12 +531,17 @@ class GPTrainer:
         # 2. Percentage error plot
         plt.figure(figsize=(12, 6))
         
-        percent_error = 100 * (pred_median - true_median) / true_median
+        percent_error = 100 * (pred_means - y_test_T) / y_test_T
+        percent_error_median = np.median(percent_error, axis=1)
+        percent_error_lower = np.quantile(percent_error, 0.25, axis=1)
+        percent_error_upper = np.quantile(percent_error, 0.75, axis=1)
         error_std = 100 * pred_std / true_median
-        
-        plt.plot(self.r_bins, percent_error, 'ro-', linewidth=2, markersize=6, 
-                label='Percentage Error')
-        plt.fill_between(self.r_bins, percent_error - error_std, percent_error + error_std,
+
+        plt.errorbar(self.r_bins, percent_error_median, 
+                    yerr=[percent_error_median - percent_error_lower, percent_error_upper - percent_error_median],
+                    fmt='o', capsize=5, capthick=2, linewidth=2, markersize=6, 
+                    color='red', label='Percentage Error')
+        plt.fill_between(self.r_bins, percent_error_median - error_std, percent_error_median + error_std,
                         color='red', alpha=0.2, label='Error Uncertainty')
         
         plt.axhline(0, color='k', linestyle='--', linewidth=1)
@@ -612,9 +641,46 @@ class GPTrainer:
         if os.path.exists(info_path):
             with open(info_path, 'r') as f:
                 self.training_info = json.load(f)
+                
+            # Verify loaded training info matches current initialization
+            self._verify_loaded_metadata()
+        
         
         self.is_pretrained_loaded = True
         print(f"Loaded {len(self.trained_models)} trained models")
+    
+    def _verify_loaded_metadata(self):
+        """Verify and update metadata to match loaded pretrained model."""
+        if not hasattr(self, 'training_info') or self.training_info is None:
+            return
+        
+        # Check for mismatches and update metadata
+        mismatched_params = []
+        
+        if 'sim_indices_total' in self.training_info and self.training_info['sim_indices_total'] != self.sim_indices_total:
+            mismatched_params.append('sim_indices_total')
+            self.sim_indices_total = self.training_info['sim_indices_total']
+            
+        if 'train_test_val_split' in self.training_info and self.training_info['train_test_val_split'] != self.train_test_val_split:
+            mismatched_params.append('train_test_val_split')
+            self.train_test_val_split = self.training_info['train_test_val_split']
+            self.train_ratio, self.test_ratio, self.val_ratio = self.train_test_val_split
+            
+        if 'filterType' in self.training_info and self.training_info['filterType'] != self.filterType:
+            mismatched_params.append('filterType')
+            self.filterType = self.training_info['filterType']
+            
+        if 'ptype' in self.training_info and self.training_info['ptype'] != self.ptype:
+            mismatched_params.append('ptype')
+            self.ptype = self.training_info['ptype']
+        
+        if mismatched_params:
+            print(f"⚠️  Defined {'/'.join(mismatched_params)} unmatched with loaded pretrained model, changed to loaded model with sim_indices={len(self.sim_indices_total)}, split={self.train_test_val_split}, filterType={self.filterType}, ptype={self.ptype}")
+            
+            # Reload data with updated metadata
+            self.is_data_loaded = False
+            self._load_data()
+    
     
     def tune_hyperparameters(self, 
                            subset_ratio: float = 0.1,

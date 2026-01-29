@@ -12,9 +12,9 @@ from src.config.config import (
 
 def load_simulation_data(sim_indices, filterType='CAP', ptype='gas',
                         include_params=True, include_pk=True, include_mass=True,
-                        aggregate_method='extend'):
+                        aggregate_func='extend'):
     """
-    Unified function to load simulation data with configurable outputs.
+    Unified function to load simulation data with configurable outputs and aggregation.
     
     Args:
         sim_indices: List of simulation indices to load
@@ -23,17 +23,26 @@ def load_simulation_data(sim_indices, filterType='CAP', ptype='gas',
         include_params: Whether to include cosmological parameters
         include_pk: Whether to include power spectrum ratios
         include_mass: Whether to include halo masses
-        aggregate_method: How to aggregate profiles ('extend' or 'median')
+        aggregate_func: How to aggregate profiles:
+            - 'extend': Return all individual halo profiles (shape: n_halos*n_sims, n_bins)
+            - 'mean': Return mean profile per simulation (shape: n_sims, n_bins)
+            - 'median': Return median profile per simulation (shape: n_sims, n_bins)
+            - 'std': Return std profile per simulation (shape: n_sims, n_bins)
     
     Returns:
         Tuple containing (r_bins, profiles, [mass], [params], [k], [pk_ratios])
         Optional returns depend on include_* parameters
+        Profile shape depends on aggregate_func
     """
     # Validate inputs
     filterType = validate_filter_type(filterType)
     ptype = validate_particle_type(ptype)
     
-    print(f'Getting {ptype} profiles with {filterType} filter for {len(sim_indices)} simulations...')
+    if aggregate_func not in ['extend', 'mean', 'median', 'std']:
+        raise ValueError(f"Unknown aggregate_func: {aggregate_func}. Use 'extend', 'mean', 'median', or 'std'")
+    
+    agg_name = aggregate_func if aggregate_func != 'extend' else 'individual halo'
+    print(f'Getting {agg_name} {ptype} profiles with {filterType} filter for {len(sim_indices)} simulations...')
     
     # Initialize output containers
     profiles_ptype = []
@@ -58,20 +67,31 @@ def load_simulation_data(sim_indices, filterType='CAP', ptype='gas',
         # Select particle type
         profiles = _select_particle_profiles(profiles_g, profiles_m, profiles_s, profiles_bh, ptype)
         
-        # Aggregate profiles
-        if aggregate_method == 'extend':
+        # Aggregate profiles based on function
+        if aggregate_func == 'extend':
             profiles_ptype.extend(profiles)
             if include_mass:
                 mass_halos.extend(np.linspace(m_min, m_max, len(profiles)))
-        elif aggregate_method == 'median':
-            profiles_ptype.append(np.median(profiles, axis=0))
+        elif aggregate_func == 'mean':
+            agg_profile = np.mean(profiles, axis=0)
+            profiles_ptype.append(agg_profile)
+            if include_mass:
+                mass_halos.append(np.mean([m_min, m_max]))
+        elif aggregate_func == 'median':
+            agg_profile = np.median(profiles, axis=0)
+            profiles_ptype.append(agg_profile)
             if include_mass:
                 mass_halos.append(np.median(np.linspace(m_min, m_max, len(profiles))))
+        elif aggregate_func == 'std':
+            agg_profile = np.std(profiles, axis=0)
+            profiles_ptype.append(agg_profile)
+            if include_mass:
+                mass_halos.append(np.std(np.linspace(m_min, m_max, len(profiles))))
         
         # Load additional data if requested
         if include_params:
             param_sim = getParams(sim_id)
-            if aggregate_method == 'extend':
+            if aggregate_func == 'extend':
                 param_halos.extend(np.repeat(param_sim[np.newaxis, :], len(profiles), axis=0))
             else:
                 param_halos.append(param_sim)
@@ -80,16 +100,18 @@ def load_simulation_data(sim_indices, filterType='CAP', ptype='gas',
             k, PkRatio = getPkRatio(sim_id)
             if k_vals is None:
                 k_vals = k
-            if aggregate_method == 'extend':
+            if aggregate_func == 'extend':
                 pkratio_halos.extend(np.repeat(PkRatio, len(profiles), axis=0))
             else:
                 pkratio_halos.append(PkRatio[0])  # Take first (should be same for all halos in sim)
     
     # Print completion message
-    if aggregate_method == 'extend':
+    if aggregate_func == 'extend':
         print(f'Finished getting profiles in {len(profiles_ptype)} halos.')
+        print(f'Output shape: ({len(profiles_ptype)}, {len(r_bins)})')
     else:
-        print(f'Finished getting profiles in {len(profiles_ptype)} simulations.')
+        print(f'Finished getting {aggregate_func} profiles from {len(profiles_ptype)} simulations.')
+        print(f'Output shape: ({len(profiles_ptype)}, {len(r_bins)})')
     
     # Prepare return values
     result = [jnp.array(r_bins), jnp.array(profiles_ptype)]
@@ -110,96 +132,16 @@ def load_simulation_data(sim_indices, filterType='CAP', ptype='gas',
 def load_simulation_mean_profiles(sim_indices, filterType='CAP', ptype='gas',
                                 include_params=True, include_mass=True, include_pk=True, aggregate_func='mean'):
     """
-    Load simulation data with mean profiles per simulation.
+    Legacy wrapper for backward compatibility.
     
-    This function returns mean profiles for each simulation instead of all individual
-    halo profiles, resulting in shape (n_sims, n_bins) instead of (n_halos*n_sims, n_bins).
-    
-    Args:
-        sim_indices: List of simulation indices to load
-        filterType: Filter type ('CAP', 'cumulative', 'dsigma')
-        ptype: Particle type ('gas', 'dm', 'star', 'bh', 'total', 'baryon')
-        include_params: Whether to include cosmological parameters
-        include_pk: Whether to include power spectrum ratios
-        aggregate_func: Aggregation function ('mean', 'median', 'std')
-    
-    Returns:
-        Tuple containing (r_bins, mean_profiles, [params], [k], [pk_ratios])
-        - mean_profiles: shape (n_sims, n_bins) - one profile per simulation
-        - params: shape (n_sims, n_params) if included
-        - pk_ratios: shape (n_sims, n_k) if included
+    This function provides the same interface as the old load_simulation_mean_profiles
+    but now uses the unified load_simulation_data function.
     """
-    # Validate inputs
-    filterType = validate_filter_type(filterType)
-    ptype = validate_particle_type(ptype)
-    
-    print(f'Getting mean {ptype} profiles with {filterType} filter for {len(sim_indices)} simulations...')
-    
-    # Initialize output containers
-    mean_profiles = []
-    param_sims = [] if include_params else None
-    pkratio_sims = [] if include_pk else None
-    mass_halos = [] if include_mass else None
-    k_vals = None
-    
-    for i, sim_id in enumerate(sim_indices):
-        # Load profile data
-        profile_file = get_profile_file_path(sim_id)
-        Henry_profiles_sim = np.load(profile_file)
-        
-        r_bins = Henry_profiles_sim['r_bins']
-        [m_min, m_max] = Henry_profiles_sim['m_halos_range']
-        
-        # Extract profiles based on filter type
-        filter_idx = FILTER_INDICES[filterType]
-        Henry_profiles = Henry_profiles_sim['profiles'][filter_idx]
-        profiles_g, profiles_m, profiles_s, profiles_bh = Henry_profiles
-        
-        # Select particle type
-        profiles = _select_particle_profiles(profiles_g, profiles_m, profiles_s, profiles_bh, ptype)
-        
-        # Compute aggregated profile for this simulation
-        if aggregate_func == 'mean':
-            agg_profile = np.mean(profiles, axis=0)
-        elif aggregate_func == 'median':
-            agg_profile = np.median(profiles, axis=0)
-        elif aggregate_func == 'std':
-            agg_profile = np.std(profiles, axis=0)
-        else:
-            raise ValueError(f"Unknown aggregate_func: {aggregate_func}. Use 'mean', 'median', or 'std'")
-        
-        mean_profiles.append(agg_profile)
-        if include_mass:
-            mass_halos.append(np.mean([m_min, m_max]))
-        
-        # Load additional data if requested
-        if include_params:
-            param_sim = getParams(sim_id)
-            param_sims.append(param_sim)
-                
-        if include_pk:
-            k, PkRatio = getPkRatio(sim_id)
-            if k_vals is None:
-                k_vals = k
-            pkratio_sims.append(PkRatio[0])  # Take first (should be same for all halos in sim)
-    
-    # Print completion message
-    print(f'Finished getting mean profiles from {len(mean_profiles)} simulations.')
-    print(f'Output shape: ({len(mean_profiles)}, {len(r_bins)}) vs individual halo shape would be (n_halos*{len(sim_indices)}, {len(r_bins)})')
-    
-    # Prepare return values
-    result = [jnp.array(r_bins), jnp.array(mean_profiles)]
-    if include_mass:
-        result.append(jnp.array(mass_halos))
-    if include_params:
-        result.append(jnp.array(param_sims))
-    if include_pk:
-        # Ensure k_vals maintains array structure
-        if len(k_vals) == 1:
-            k_vals = k_vals[0]  # Extract the k array, not make it scalar
-        result.extend([jnp.array(k_vals), jnp.array(pkratio_sims)])
-        
-    return tuple(result)
+    return load_simulation_data(
+        sim_indices=sim_indices, filterType=filterType, ptype=ptype,
+        include_params=include_params, include_pk=include_pk, include_mass=include_mass,
+        aggregate_func=aggregate_func
+    )
 
 
 def _select_particle_profiles(profiles_g, profiles_m, profiles_s, profiles_bh, ptype):
@@ -227,7 +169,7 @@ def getSims(sim_indices, filterType='CAP', ptype='gas'):
     return load_simulation_data(
         sim_indices, filterType=filterType, ptype=ptype,
         include_params=True, include_pk=True, include_mass=True,
-        aggregate_method='extend'
+        aggregate_func='extend'
     )
 
 def getProfiles(sim_indices, filterType='CAP', ptype='gas'):
@@ -239,9 +181,48 @@ def getProfiles(sim_indices, filterType='CAP', ptype='gas'):
     r_bins, profiles_ptype = load_simulation_data(
         sim_indices, filterType=filterType, ptype=ptype,
         include_params=False, include_pk=False, include_mass=False,
-        aggregate_method='extend'
+        aggregate_func='extend'
     )
     return r_bins, profiles_ptype
+
+def getMeanProfilesParamsTensor(theta, filterType='CAP', ptype='gas'):
+    """
+    Get the radial profiles with observation-specific filters for given parameters.
+    Input and output are torch Tensors.
+    
+    This function finds the nearest simulation parameters and returns median profiles.
+    """
+    print(f'Getting {ptype} profiles with {filterType} filter given parameters...')
+
+    # Ensure theta is a torch Tensor
+    if not isinstance(theta, torch.Tensor):
+        theta = torch.tensor(theta, dtype=torch.float32)
+    
+    # If theta is 1D, reshape to (1, n_params)
+    if theta.ndim == 1:
+        theta = theta.unsqueeze(0)
+
+    # Load parameter matrix and find nearest simulations
+    params_matrix = np.load(PARAM_MATRIX_PATH)
+    params_matrix_torch = torch.tensor(params_matrix, dtype=torch.float32)
+
+    sim_indices = []
+    for i in range(theta.shape[0]):
+        # Compute distances in torch
+        distances = torch.norm(params_matrix_torch - theta[i], dim=1)
+        nearest_index = torch.argmin(distances).item()
+        sim_indices.append(nearest_index)
+
+    # Load profiles using unified function with mean aggregation
+    data_tuple = load_simulation_data(
+        sim_indices, filterType=filterType, ptype=ptype,
+        include_params=False, include_pk=False, include_mass=False,
+        aggregate_func='mean'
+    )
+    r_bins_tensor = torch.tensor(np.array(data_tuple[0]), dtype=torch.float32)
+    profiles_ptype_tensor = torch.tensor(np.array(data_tuple[1]), dtype=torch.float32)
+
+    return r_bins_tensor, profiles_ptype_tensor
 
 def getProfilesParamsTensor(theta, filterType='CAP', ptype='gas'):
     """
@@ -271,16 +252,16 @@ def getProfilesParamsTensor(theta, filterType='CAP', ptype='gas'):
         nearest_index = torch.argmin(distances).item()
         sim_indices.append(nearest_index)
 
-    # Load profiles using unified function
-    r_bins, profiles_ptype = load_simulation_data(
+    # Load profiles using unified function with median aggregation
+    data_tuple = load_simulation_data(
         sim_indices, filterType=filterType, ptype=ptype,
         include_params=False, include_pk=False, include_mass=False,
-        aggregate_method='median'
+        aggregate_func='median'
     )
     
     # Convert outputs to torch Tensors
-    r_bins_tensor = torch.tensor(r_bins, dtype=torch.float32)
-    profiles_ptype_tensor = torch.tensor(profiles_ptype, dtype=torch.float32)
+    r_bins_tensor = torch.tensor(data_tuple[0], dtype=torch.float32)
+    profiles_ptype_tensor = torch.tensor(data_tuple[1], dtype=torch.float32)
     return r_bins_tensor, profiles_ptype_tensor
 
 def getParams(sim_indices):

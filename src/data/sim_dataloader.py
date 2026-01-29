@@ -16,6 +16,8 @@ from typing import Tuple, Optional, Callable, Dict, Any, List
 from dataclasses import dataclass
 import warnings
 
+from src.data.profile_loader import load_simulation_data
+
 
 @dataclass
 class DataLoaderConfig:
@@ -80,7 +82,8 @@ class SimulationDataLoader:
         config: DataLoaderConfig = None,
         filterType: str = 'CAP',
         ptype: str = 'gas',
-        custom_transforms: Optional[Dict[str, Callable]] = None
+        custom_transforms: Optional[Dict[str, Callable]] = None,
+        func: str = 'mean', # 'mean' or 'median' or 'extend'
     ):
         """
         Initialize SimulationDataLoader.
@@ -96,6 +99,7 @@ class SimulationDataLoader:
         self.config = config or DataLoaderConfig()
         self.filterType = filterType
         self.ptype = ptype
+        self.func = func
         self.custom_transforms = custom_transforms or {}
         
         # Validate configuration
@@ -111,6 +115,37 @@ class SimulationDataLoader:
         print(f"  - Train/Val/Test: {len(self.train_indices)}/{len(self.val_indices)}/{len(self.test_indices)}")
         print(f"  - Batch size: {self.config.batch_size}")
     
+    def _clip_extreme_profiles(self, profiles: jnp.ndarray, min_val: float = 1e4, max_val: float = 1e20) -> Tuple[jnp.ndarray, int, int]:
+        """
+        Clip extreme values in profiles and replace with mean profile values (vectorized).
+        
+        Args:
+            profiles: Profile data array of shape (n_samples, n_radius_bins)
+            min_val: Minimum allowed value (default: 1e-6)
+            max_val: Maximum allowed value (default: 1e20)
+            
+        Returns:
+            Tuple of (clipped_profiles, n_profiles_affected, total_bins_clipped)
+        """
+        print(f'Clipping extrem measurements >{max_val}&<{min_val}')
+        # Calculate mean profile across all simulations for substitution
+        mean_profile = jnp.nanmean(profiles, axis=0)
+        
+        # Find all extreme values using vectorized operations
+        extreme_mask = (profiles < min_val) | (profiles > max_val) | jnp.isnan(profiles) | jnp.isinf(profiles)
+        
+        # Count statistics
+        n_profiles_affected = jnp.sum(jnp.any(extreme_mask, axis=1))
+        total_bins_clipped = jnp.sum(extreme_mask)
+        
+        # Replace extreme values with corresponding mean profile values (vectorized)
+        profiles_clipped = jnp.where(extreme_mask, mean_profile[None, :], profiles)
+        
+        if total_bins_clipped > 0:
+            print(f"📊 {n_profiles_affected} profiles had {total_bins_clipped} bins clipped out with mean profile data")
+        
+        return profiles_clipped, int(n_profiles_affected), int(total_bins_clipped)
+    
     def _validate_config(self):
         """Validate DataLoader configuration."""
         ratios_sum = self.config.train_ratio + self.config.val_ratio + self.config.test_ratio
@@ -125,13 +160,13 @@ class SimulationDataLoader:
         print(f"Loading data for {len(self.sim_indices)} simulations...")
         
         # Import here to avoid circular imports
-        from src.data.profile_loader import load_simulation_mean_profiles
+        from src.data.profile_loader import load_simulation_data
         
         # Load data using mean profiles function (compatible with neural network training)
-        data_tuple = load_simulation_mean_profiles(
+        data_tuple = load_simulation_data(
             self.sim_indices, filterType=self.filterType, ptype=self.ptype,
             include_params=True, include_pk=True, include_mass=True,
-            aggregate_func='mean'
+            aggregate_func= self.func
         )
         
         # Unpack based on what's included
@@ -156,8 +191,11 @@ class SimulationDataLoader:
         print(f'  - Params: {param_halos.shape}')
         print(f'  - PkRatio: {PkRatio.shape}')
         
+        # Clip extreme values in profiles before storing
+        profiles_ptype_clipped, n_profiles_clipped, n_bins_clipped = self._clip_extreme_profiles(profiles_ptype)
+        
         # Store raw data
-        self.raw_profiles = profiles_ptype
+        self.raw_profiles = profiles_ptype_clipped
         self.raw_masses = mass_halos
         self.raw_params = param_halos
         self.raw_pk_ratios = PkRatio

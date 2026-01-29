@@ -1,0 +1,14 @@
+config: !!python/object:__main__.ModelConfig
+  dropout_rate: 0.2
+  hidden_dims:
+  - 256
+  - 256
+  - 128
+  n_cosmo_params: 35
+  n_halo_features: 540
+  n_power_bins: 118
+  use_batch_norm: true
+  use_residual: true
+lr: 0.001
+n_models: 5
+weight_decay: 1.0e-05

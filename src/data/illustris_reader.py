@@ -14,6 +14,7 @@ import MAS_library as MASL
 from mpi4py import MPI
 from numba import njit, prange
 import pickle
+
 from src.utils.filters import *
 from src.utils.masks import *
 import matplotlib
@@ -235,7 +236,7 @@ class readHaloProfiles:
         M_dm =  subhalos['SubhaloMassInMaxRadType'][central_subhalo_ids,1]*1e10
         M_tot =  subhalos['SubhaloMassInMaxRad'][central_subhalo_ids]*1e10 
 
-        mass_threshold = np.sort(mass_msun)[::-1][int(5.4e-4*self.BoxSize**3)] 
+        mass_threshold = np.sort(mass_msun)[::-1][int(2.4e-2*self.BoxSize**3)]  #5.4e-4 for DESI Main LRG Samples (68 halos) 2.4e-2 (3000 halos)
         mass_condition = mass_msun >= mass_threshold # condition for massive halos
         central_subhalo_ids_massive_bins = central_subhalo_ids[mass_condition] #massive halos: 113
         self.pos_g  =  subhalos['SubhaloPos'][central_subhalo_ids_massive_bins]/1e3         #position of the central subhalos (the most massive galaxy in each group), in Mpc/h   (11113,)
@@ -1107,7 +1108,7 @@ class readHaloProfiles:
         self.read_header()
         self.read_particles()
         self.read_catalog(plot=False)
-        self.get_field_baryon_suppression(plot=plot, save=save, grid=512)
+        # self.get_field_baryon_suppression(plot=plot, save=save, grid=512)
         self.calc_theta_arcmin_ACT_nPixels(PixelSize=0.5)
         self.get_stacked_profiles(nPixel=nPixel,  beamsize=beamsize, n_bins=n_bins, r_min=r_min, r_max=r_max, plot=plot, save=save)
         print(f"Henry's halo analysis completed in {time.time() - t0:.2f} seconds.")

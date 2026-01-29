@@ -37,243 +37,88 @@ import pickle
 import json
 import jax.numpy as jnp
 from tqdm import tqdm
-from concurrent.futures import ProcessPoolExecutor
-from multiprocessing import cpu_count
 
-from src.data.profile_loader import load_simulation_mean_profiles, getParamsFiducial
+from src.data.profile_loader import getParamsFiducial
+from src.inference.gp_hmc_inference import run_batch_inference
+from src.models.gp_trainer import GPTrainer
 
 
-def load_gp_models_and_data(gp_dir, n_training_samples=716):
-    """Load GP models and their training data."""
-    
+def load_gp_trainer_and_get_test_indices(gp_dir):
+    """Load GP trainer and get test simulation indices."""
+
     model_path = Path(gp_dir)
-    
-    # Load models
-    with open(model_path / 'trained_models.pkl', 'rb') as f:
-        gp_models = pickle.load(f)
-    
-    # Load training info
-    with open(model_path / 'training_info.json', 'r') as f:
-        training_info = json.load(f)
-    
-    # Load training data (matching what was used for training)
-    train_r_bins, train_profiles, train_masses, train_params, train_k, train_pk_ratios = load_simulation_mean_profiles(
-        list(range(n_training_samples)), filterType='CAP', ptype='gas'
+
+    # Load GP trainer
+    trainer = GPTrainer(
+        sim_indices_total=list(range(1024)),
+        train_test_val_split=(0.7, 0.2, 0.1),
+        filterType='CAP',
+        ptype='gas'
     )
-    
-    # Prepare training features
-    n_k_features = len(train_k) if train_k is not None else 79
-    n_features = 35 + 1 + 1 + n_k_features
-    
-    X_train = np.zeros((n_training_samples, n_features))
-    X_train[:, :35] = train_params[:, :35]
-    
-    for i in range(n_training_samples):
-        try:
-            X_train[i, 35] = np.log10(float(train_masses[i]))
-        except (TypeError, ValueError, IndexError):
-            X_train[i, 35] = np.log10(1e14)
-            
-        try:
-            X_train[i, 36] = np.log10(float(train_pk_ratios[i]))
-        except (TypeError, ValueError, IndexError):
-            X_train[i, 36] = np.log10(1.0)
-    
-    # Fill k_features
-    if n_k_features > 0:
-        X_train[:, 37:] = 0.0
-    
-    y_train = train_profiles
-    
-    return {
-        'gp_models': gp_models,
-        'X_train': X_train,
-        'y_train': y_train,
-        'training_info': training_info,
-        'n_features': n_features,
-        'r_bins': train_r_bins
-    }
+    trainer._load_pretrained(model_path)
+
+    # Get test indices from trainer
+    test_indices = trainer.training_info.get('test_indices', [])
+
+    return trainer, test_indices
 
 
-def create_gp_likelihood_function_for_sim(gp_data, obs_profile, true_mass, true_pk_ratio):
-    """Create GP likelihood function for a specific simulation."""
-    
-    gp_models = gp_data['gp_models']
-    X_train = gp_data['X_train']
-    y_train = gp_data['y_train']
-    n_features = gp_data['n_features']
-    
-    def gp_log_likelihood(test_params):
-        try:
-            # Construct GP input
-            gp_input = np.zeros(n_features)
-            gp_input[:35] = test_params[:35]
-            gp_input[35] = np.log10(true_mass)
-            gp_input[36] = np.log10(true_pk_ratio)
-            
-            # Get GP predictions
-            test_input_jnp = jnp.array(gp_input).reshape(1, -1)
-            pred_means = []
-            pred_vars = []
-            
-            for i, gp_model in enumerate(gp_models):
-                y_train_i = jnp.array(y_train[:, i])
-                _, cond_gp = gp_model.condition(y_train_i, test_input_jnp)
-                pred_means.append(float(cond_gp.mean[0]))
-                pred_vars.append(float(cond_gp.variance[0]))
-            
-            pred_profile = np.array(pred_means)
-            pred_vars = np.array(pred_vars)
-            
-            # Gaussian likelihood
-            obs_noise = 0.02 * np.abs(obs_profile)
-            total_var = pred_vars + obs_noise**2
-            
-            residuals = obs_profile - pred_profile
-            log_like = -0.5 * np.sum(residuals**2 / total_var + np.log(2 * np.pi * total_var))
-            
-            return log_like if np.isfinite(log_like) else -1e10
-            
-        except Exception:
-            return -1e10
-    
-    return gp_log_likelihood
 
 
-def run_single_inference(sim_id, gp_data, selected_indices, param_names, minVal, maxVal, 
-                        n_samples=2000, burnin=500):
-    """Run inference for a single simulation."""
-    
-    try:
-        # Load simulation data
-        r_bins, profiles, masses, params, k, pk_ratios = load_simulation_mean_profiles(
-            [sim_id], filterType='CAP', ptype='gas'
-        )
-        
-        if profiles is None or len(profiles) == 0:
-            return None
-        
-        obs_profile = profiles[0]
-        true_params = params[0]
-        
-        try:
-            true_mass = float(masses[0])
-        except (TypeError, ValueError):
-            true_mass = 1e14
-        
-        try:
-            true_pk_ratio = float(pk_ratios[0]) if pk_ratios is not None else 1.0
-        except (TypeError, ValueError):
-            true_pk_ratio = 1.0
-        
-        # Create likelihood function
-        log_likelihood_fn = create_gp_likelihood_function_for_sim(
-            gp_data, obs_profile, true_mass, true_pk_ratio
-        )
-        
-        # Simple MCMC sampling (simplified for speed)
-        current_params = np.array([0.5 * (minVal[i] + maxVal[i]) for i in range(len(minVal))])
-        samples = np.zeros((n_samples, len(minVal)))
-        n_accepted = 0
-        
-        # Step sizes
-        step_sizes = {}
-        for param_idx in selected_indices:
-            param_range = maxVal[param_idx] - minVal[param_idx]
-            step_sizes[param_idx] = 0.02 * param_range
-        
-        current_log_like = log_likelihood_fn(current_params)
-        
-        for i in range(n_samples):
-            # Propose new parameters
-            proposal_params = current_params.copy()
-            
-            for param_idx in selected_indices:
-                proposal_params[param_idx] += np.random.normal(0, step_sizes[param_idx])
-                proposal_params[param_idx] = np.clip(
-                    proposal_params[param_idx], minVal[param_idx], maxVal[param_idx]
-                )
-            
-            # Evaluate proposal
-            proposal_log_like = log_likelihood_fn(proposal_params)
-            
-            # Accept/reject
-            if np.log(np.random.rand()) < (proposal_log_like - current_log_like):
-                current_params = proposal_params.copy()
-                current_log_like = proposal_log_like
-                n_accepted += 1
-            
-            samples[i] = current_params
-        
-        # Return results
-        samples_clean = samples[burnin:]
-        acceptance_rate = n_accepted / n_samples
-        
-        return {
-            'sim_id': sim_id,
-            'samples': samples_clean,
-            'true_params': true_params,
-            'acceptance_rate': acceptance_rate,
-            'success': True
-        }
-        
-    except Exception as e:
-        print(f"   ❌ Simulation {sim_id} failed: {str(e)[:50]}...")
-        return {
-            'sim_id': sim_id,
-            'success': False,
-            'error': str(e)
-        }
+def compute_coverage_statistics_from_batch(batch_results, confidence_levels):
+    """Compute coverage statistics from batch inference results."""
 
-
-def compute_coverage_statistics(inference_results, selected_indices, confidence_levels):
-    """Compute coverage statistics from inference results."""
-    
     print(f"\n📊 Computing coverage statistics...")
-    
-    successful_results = [r for r in inference_results if r['success']]
-    n_successful = len(successful_results)
-    
-    print(f"   • Successful inferences: {n_successful}/{len(inference_results)}")
-    
+
+    if batch_results is None:
+        print("   ❌ No batch results available")
+        return {}
+
+    all_samples = batch_results['all_samples']
+    all_true_values = batch_results['all_true_values']
+    param_labels = batch_results['param_labels']
+    n_successful = batch_results['n_simulations']
+
+    print(f"   • Successful inferences: {n_successful}")
+
     coverage_stats = {}
-    
+
     for alpha in confidence_levels:
-        # Compute credible intervals for each parameter and simulation
         param_coverage = []
-        
-        for param_idx in selected_indices:
+
+        for param_idx in range(len(param_labels)):
             covered_count = 0
-            
-            for result in successful_results:
-                samples = result['samples']
-                true_val = result['true_params'][param_idx]
-                
+
+            for sim_idx in range(len(all_samples)):
+                # Get samples after burnin (samples already cleaned in batch_results)
+                samples = all_samples[sim_idx]
+                true_val = all_true_values[sim_idx][param_idx]
+
                 # Compute credible interval
                 param_samples = samples[:, param_idx]
                 lower = np.percentile(param_samples, 50 * (1 - alpha))
                 upper = np.percentile(param_samples, 50 * (1 + alpha))
-                
+
                 # Check if true value is within interval
                 if lower <= true_val <= upper:
                     covered_count += 1
-            
-            coverage_fraction = covered_count / n_successful
+
+            coverage_fraction = covered_count / n_successful if n_successful > 0 else 0
             param_coverage.append(coverage_fraction)
-        
+
         # Average coverage across parameters
-        mean_coverage = np.mean(param_coverage)
+        mean_coverage = np.mean(param_coverage) if param_coverage else 0
         coverage_stats[alpha] = {
             'mean_coverage': mean_coverage,
             'param_coverage': param_coverage,
             'expected_coverage': alpha,
             'deviation': abs(mean_coverage - alpha)
         }
-    
+
     return coverage_stats
 
 
-def create_coverage_plot(coverage_stats, gp_model_name, save_path):
+def create_coverage_plot(coverage_stats, gp_model_name, save_path, n_simulations):
     """Create C(α) vs α coverage plot."""
     
     confidence_levels = sorted(coverage_stats.keys())
@@ -289,9 +134,8 @@ def create_coverage_plot(coverage_stats, gp_model_name, save_path):
     ax.plot(confidence_levels, observed_coverage, 'o-', linewidth=2, markersize=6, 
            color='red', label=f'Observed Coverage ({gp_model_name})')
     
-    # Confidence bands (approximate)
-    n_sims = 50  # Approximate number of successful simulations
-    std_error = np.sqrt(np.array(confidence_levels) * (1 - np.array(confidence_levels)) / n_sims)
+    # Confidence bands (exact based on actual number of simulations)
+    std_error = np.sqrt(np.array(confidence_levels) * (1 - np.array(confidence_levels)) / n_simulations)
     upper_bound = np.array(confidence_levels) + 1.96 * std_error
     lower_bound = np.array(confidence_levels) - 1.96 * std_error
     
@@ -323,72 +167,71 @@ def create_coverage_plot(coverage_stats, gp_model_name, save_path):
     plt.close()
 
 
-def save_coverage_results(inference_results, coverage_stats, gp_model_dirs, output_dir):
+def save_coverage_results(batch_results, coverage_stats, gp_model_dir, output_dir):
     """Save comprehensive coverage test results."""
-    
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
+
     # Save raw results
     results_path = output_dir / f"coverage_test_results_{timestamp}.pkl"
     results_data = {
-        'inference_results': inference_results,
+        'batch_results': batch_results,
         'coverage_stats': coverage_stats,
-        'gp_model_dirs': gp_model_dirs,
+        'gp_model_dir': gp_model_dir,
         'timestamp': timestamp
     }
-    
+
     with open(results_path, 'wb') as f:
         pickle.dump(results_data, f)
-    
+
     # Save summary report
     report_path = output_dir / f"coverage_test_summary_{timestamp}.md"
     with open(report_path, 'w') as f:
-        f.write(f"# Real GP Coverage Test Results\n\n")
+        f.write(f"# GP Coverage Test Results - {Path(gp_model_dir).name}\n\n")
         f.write(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-        
+
         f.write(f"## Test Configuration\n")
-        f.write(f"- GP model directories: {len(gp_model_dirs)}\n")
-        for i, gp_dir in enumerate(gp_model_dirs):
-            f.write(f"  {i+1}. {gp_dir}\n")
-        
-        successful_results = [r for r in inference_results if r['success']]
-        f.write(f"- Total simulations attempted: {len(inference_results)}\n")
-        f.write(f"- Successful inferences: {len(successful_results)}\n")
-        f.write(f"- Success rate: {len(successful_results)/len(inference_results):.1%}\n\n")
-        
+        f.write(f"- GP model: {gp_model_dir}\n")
+        f.write(f"- Total simulations attempted: {len(batch_results['individual_results']) if batch_results else 0}\n")
+        f.write(f"- Successful inferences: {batch_results['n_simulations'] if batch_results else 0}\n")
+        if batch_results and len(batch_results['individual_results']) > 0:
+            success_rate = batch_results['n_simulations'] / len(batch_results['individual_results'])
+            f.write(f"- Success rate: {success_rate:.1%}\n")
+        f.write(f"- Parameters tested: {', '.join(batch_results['param_labels']) if batch_results else 'N/A'}\n\n")
+
         f.write(f"## Coverage Statistics\n")
         f.write(f"| Confidence Level (α) | Expected | Observed | Deviation |\n")
         f.write(f"|---------------------|----------|----------|----------|\n")
-        
+
         for alpha in sorted(coverage_stats.keys()):
             stats = coverage_stats[alpha]
             f.write(f"| {alpha:.2f} | {alpha:.2f} | {stats['mean_coverage']:.3f} | {stats['deviation']:.3f} |\n")
-        
-        mean_deviation = np.mean([coverage_stats[alpha]['deviation'] for alpha in coverage_stats.keys()])
-        f.write(f"\n**Mean absolute deviation:** {mean_deviation:.3f}\n\n")
-        
-        # Model evaluation
-        if mean_deviation < 0.05:
-            f.write("✅ **Model Assessment: WELL-CALIBRATED** - Mean deviation < 0.05\n")
-        elif mean_deviation < 0.10:
-            f.write("⚠️ **Model Assessment: MODERATELY CALIBRATED** - Mean deviation 0.05-0.10\n")
-        else:
-            f.write("❌ **Model Assessment: POORLY CALIBRATED** - Mean deviation > 0.10\n")
-        
-        f.write(f"\n## Individual Simulation Results\n")
-        f.write(f"| Sim ID | Status | Acceptance Rate | Notes |\n")
-        f.write(f"|--------|--------|-----------------| ------ |\n")
-        
-        for result in inference_results[:20]:  # Show first 20 results
-            if result['success']:
-                f.write(f"| {result['sim_id']} | ✅ Success | {result['acceptance_rate']:.1%} | - |\n")
+
+        if coverage_stats:
+            mean_deviation = np.mean([coverage_stats[alpha]['deviation'] for alpha in coverage_stats.keys()])
+            f.write(f"\n**Mean absolute deviation:** {mean_deviation:.3f}\n\n")
+
+            # Model evaluation
+            if mean_deviation < 0.05:
+                f.write("✅ **Model Assessment: WELL-CALIBRATED** - Mean deviation < 0.05\n")
+            elif mean_deviation < 0.10:
+                f.write("⚠️ **Model Assessment: MODERATELY CALIBRATED** - Mean deviation 0.05-0.10\n")
             else:
-                f.write(f"| {result['sim_id']} | ❌ Failed | - | {result.get('error', 'Unknown')[:30]} |\n")
-    
+                f.write("❌ **Model Assessment: POORLY CALIBRATED** - Mean deviation > 0.10\n")
+
+        # Individual simulation results
+        f.write(f"\n## Individual Simulation Results (First 20)\n")
+        f.write(f"| Sim ID | Status | Acceptance Rate |\n")
+        f.write(f"|--------|--------|-----------------|\n")
+
+        if batch_results and batch_results['individual_results']:
+            for i, (sim_id, result) in enumerate(list(batch_results['individual_results'].items())[:20]):
+                f.write(f"| {sim_id} | ✅ Success | {result['acceptance_rate']:.1%} |\n")
+
     print(f"💾 Coverage results saved:")
     print(f"   • Data: {results_path}")
     print(f"   • Summary: {report_path}")
-    
+
     return results_path, report_path
 
 
@@ -398,119 +241,118 @@ def main():
     parser = argparse.ArgumentParser(description='Real GP Coverage Test')
     parser.add_argument('--n_sims', type=int, default=50, 
                        help='Number of simulations to test')
-    parser.add_argument('--gp_dirs', nargs='+', 
-                       default=['/pscratch/sd/l/lindajin/DH_profile_kSZ_WL/trained_gp_models/GPTrainer_091025_2209_CAP_gas/'],
-                       help='Directories containing trained GP models')
+    parser.add_argument('--gp_dir', type=str,
+                       default='/pscratch/sd/l/lindajin/DH_profile_kSZ_WL/trained_gp_models/GPTrainer_091025_2209_CAP_gas_full_bins/',
+                       help='Directory containing trained GP model')
     parser.add_argument('--start_sim', type=int, default=800, 
                        help='Starting simulation ID (avoid training data)')
     parser.add_argument('--n_samples', type=int, default=2000, 
                        help='MCMC samples per simulation')
     parser.add_argument('--burnin', type=int, default=500, 
                        help='MCMC burn-in samples')
-    parser.add_argument('--n_params', type=int, default=6, 
+    parser.add_argument('--n_params', type=int, default=6,
                        help='Number of parameters to test')
-    parser.add_argument('--parallel', action='store_true', 
+    parser.add_argument('--cosmo_only', action='store_true',
+                       help='Only infer cosmological parameters (fix mass and pk_ratio to true values)')
+    parser.add_argument('--parallel', action='store_true',
                        help='Use parallel processing')
     
     args = parser.parse_args()
     
     print("🚀 Real GP Coverage Test")
     print("=" * 60)
-    print(f"Testing {args.n_sims} simulations with {len(args.gp_dirs)} GP models")
+    print(f"Testing {args.n_sims} simulations with GP model: {Path(args.gp_dir).name}")
     print(f"MCMC: {args.n_samples} samples, {args.burnin} burn-in")
     print(f"Parameters to test: {args.n_params}")
+    if args.cosmo_only:
+        print("Mode: Cosmological parameters only (mass and pk_ratio fixed to true values)")
+    else:
+        print("Mode: Full inference (cosmological parameters + mass + pk_ratio)")
     
     # Create output directory
     output_dir = Path("inference_results")
     output_dir.mkdir(exist_ok=True)
     
-    # Load parameter information
-    param_names, fiducial_values, maxdiff, minVal, maxVal = getParamsFiducial()
-    selected_indices = list(range(args.n_params))
+    # Load parameter information (for reference, not used in batch processing)
+    _ = getParamsFiducial()
     
     # Define confidence levels for coverage testing
-    confidence_levels = np.linspace(0.1, 0.9, 9)  # 10% to 90% in steps of 10%
+    confidence_levels = np.linspace(0, 1, 20)  # 0% to 100% with 20 points total
     
-    # Test each GP model
-    for gp_idx, gp_dir in enumerate(args.gp_dirs):
-        print(f"\n🔄 Testing GP model {gp_idx+1}/{len(args.gp_dirs)}: {Path(gp_dir).name}")
-        
-        # Load GP model and training data
-        print("   Loading GP models and training data...")
-        try:
-            gp_data = load_gp_models_and_data(gp_dir)
-            print(f"   ✅ Loaded {len(gp_data['gp_models'])} GP models")
-        except Exception as e:
-            print(f"   ❌ Failed to load GP model: {e}")
-            continue
-        
-        # Generate simulation IDs to test
+    # Test the single GP model
+    gp_dir = args.gp_dir
+    print(f"\n🔄 Testing GP model: {Path(gp_dir).name}")
+
+    # Load GP trainer and get test indices
+    print("   Loading GP trainer and getting test indices...")
+    try:
+        _, test_indices = load_gp_trainer_and_get_test_indices(gp_dir)
+        print(f"   ✅ Loaded GP trainer with {len(test_indices)} test simulations available")
+    except Exception as e:
+        print(f"   ❌ Failed to load GP trainer: {e}")
+        return
+
+    # Use test indices or fallback to specified range
+    if test_indices and len(test_indices) >= args.n_sims:
+        sim_ids = test_indices[:args.n_sims]
+        print(f"   Using GP test indices: {len(sim_ids)} simulations")
+    else:
         sim_ids = list(range(args.start_sim, args.start_sim + args.n_sims))
-        print(f"   Testing simulations: {sim_ids[0]} to {sim_ids[-1]}")
-        
-        # Run inference on multiple simulations
-        print("   Running inference on test simulations...")
-        inference_results = []
-        
-        if args.parallel and cpu_count() > 1:
-            print(f"   Using parallel processing with {min(4, cpu_count())} workers...")
-            with ProcessPoolExecutor(max_workers=min(4, cpu_count())) as executor:
-                futures = []
-                for sim_id in sim_ids:
-                    future = executor.submit(
-                        run_single_inference, sim_id, gp_data, selected_indices, 
-                        param_names, minVal, maxVal, args.n_samples, args.burnin
-                    )
-                    futures.append(future)
-                
-                for future in tqdm(futures, desc="   Processing"):
-                    result = future.result()
-                    if result is not None:
-                        inference_results.append(result)
-        else:
-            for sim_id in tqdm(sim_ids, desc="   Processing"):
-                result = run_single_inference(
-                    sim_id, gp_data, selected_indices, param_names, minVal, maxVal,
-                    args.n_samples, args.burnin
-                )
-                if result is not None:
-                    inference_results.append(result)
-        
-        # Compute coverage statistics
-        coverage_stats = compute_coverage_statistics(
-            inference_results, selected_indices, confidence_levels
-        )
-        
-        # Create coverage plot
-        print("   Creating coverage plot...")
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        gp_model_name = Path(gp_dir).name
-        coverage_plot_path = output_dir / f"coverage_plot_{gp_model_name}_{timestamp}.png"
-        
-        create_coverage_plot(coverage_stats, gp_model_name, coverage_plot_path)
-        
-        # Save results
-        print("   Saving results...")
-        results_path, report_path = save_coverage_results(
-            inference_results, coverage_stats, [gp_dir], output_dir
-        )
-        
-        # Print summary
-        successful_results = [r for r in inference_results if r['success']]
-        mean_deviation = np.mean([coverage_stats[alpha]['deviation'] for alpha in confidence_levels])
-        
-        print(f"   ✅ Coverage test completed!")
-        print(f"   • Successful inferences: {len(successful_results)}/{len(inference_results)}")
-        print(f"   • Mean absolute deviation: {mean_deviation:.3f}")
-        
-        if mean_deviation < 0.05:
-            print("   • Assessment: ✅ WELL-CALIBRATED")
-        elif mean_deviation < 0.10:
-            print("   • Assessment: ⚠️  MODERATELY CALIBRATED")
-        else:
-            print("   • Assessment: ❌ POORLY CALIBRATED")
-    
-    print(f"\n✅ All coverage tests completed!")
+        print(f"   Using fallback range: {sim_ids[0]} to {sim_ids[-1]}")
+
+    # Run batch inference using the new integrated function
+    print("   Running batch inference on test simulations...")
+    batch_results = run_batch_inference(
+        sim_ids=sim_ids,
+        n_samples=args.n_samples,
+        burnin=args.burnin,
+        n_cosmo_params=args.n_params,
+        gp_name=Path(gp_dir).name,
+        cosmo_only=args.cosmo_only,
+        save_plots=False  # Don't save individual plots for coverage testing
+    )
+
+    if batch_results is None:
+        print(f"   ❌ Batch inference failed for GP model: {Path(gp_dir).name}")
+        return
+
+    print(f"   ✅ Batch inference completed: {batch_results['n_simulations']}/{len(sim_ids)} successful")
+
+    # Compute coverage statistics using batch results
+    coverage_stats = compute_coverage_statistics_from_batch(
+        batch_results, confidence_levels
+    )
+
+    # Create coverage plot
+    print("   Creating coverage plot...")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    gp_model_name = Path(gp_dir).name
+    coverage_plot_path = output_dir / f"coverage_plot_{gp_model_name}_{timestamp}.png"
+
+    create_coverage_plot(coverage_stats, gp_model_name, coverage_plot_path, batch_results['n_simulations'])
+
+    # Save results
+    print("   Saving results...")
+    save_coverage_results(
+        batch_results, coverage_stats, gp_dir, output_dir
+    )
+
+    # Print summary
+    mean_deviation = np.mean([coverage_stats[alpha]['deviation'] for alpha in confidence_levels]) if coverage_stats else 0
+
+    print(f"   ✅ Coverage test completed!")
+    print(f"   • Successful inferences: {batch_results['n_simulations']}/{len(sim_ids)}")
+    print(f"   • Mean absolute deviation: {mean_deviation:.3f}")
+    print(f"   • Coverage plot saved: {coverage_plot_path}")
+
+    if mean_deviation < 0.05:
+        print("   • Assessment: ✅ WELL-CALIBRATED")
+    elif mean_deviation < 0.10:
+        print("   • Assessment: ⚠️  MODERATELY CALIBRATED")
+    else:
+        print("   • Assessment: ❌ POORLY CALIBRATED")
+
+    print(f"\n✅ Coverage test completed!")
     print(f"   • Results saved to: {output_dir}")
 
 
