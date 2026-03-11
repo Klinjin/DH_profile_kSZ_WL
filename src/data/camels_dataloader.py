@@ -17,46 +17,33 @@ class KSZDeltaSigmaDataset(Dataset):
     - target: (255,) Ptot/Pdm power suppression ratios
     - cosmo_params: (n_params,) cosmological parameters (optional)
     """
-    def __init__(self, data_dir, include_cosmo_params=False):
-        self.ksz_path = os.path.join(data_dir, 'kSZ_over_R2_DeltaSigma_ratios_nd_4_n_300.npz')
+    def __init__(self, data_dir, include_cosmo_params=False, mean_prof=False):
+        if mean_prof:
+            self.ksz_path = os.path.join(data_dir, 'kSZ_over_T_DeltaSigma_profiles_nd_4_n_300.npz')
+        else:
+            self.ksz_path = os.path.join(data_dir, 'kSZ_over_R2_DeltaSigma_ratios_nd_4_n_300.npz')
         self.ptot_path = os.path.join(data_dir, 'Ptot_Pdm_ratio_k_le15.npz')
         self.cosmo_params_path = os.path.join(data_dir, "camels_params_matrix.npy")
         self.include_cosmo_params = include_cosmo_params
         self.n_samples = 1024
-        self.n_features_per_sample = 900
+        self.n_features_per_sample = 1
         self.r_bins = None
+        self.k_bins = None
+        self.mean_prof = mean_prof
         self._load_data()
-        self._compute_normalization()
-    
-    def _compute_normalization(self):
-        """Compute mean and std for normalization."""
-        # Compute normalization statistics for inputs
-        all_inputs = []
-        for idx in range(self.n_samples):
-            start_col = idx * self.n_features_per_sample
-            end_col = (idx + 1) * self.n_features_per_sample
-            ksz_sample = self.ksz_data[:, start_col:end_col].flatten()
-            all_inputs.append(ksz_sample)
-        
-        all_inputs = np.array(all_inputs)
-        self.input_mean = all_inputs.mean(axis=0)
-        self.input_std = all_inputs.std(axis=0) + 1e-8  # Avoid division by zero
-        
-        # Compute normalization statistics for targets
-        self.target_mean = self.ptot_data.mean(axis=0)
-        self.target_std = self.ptot_data.std(axis=0) + 1e-8
-        
-        print(f"Input normalization: mean={self.input_mean.mean():.4f}, std={self.input_std.mean():.4f}")
-        print(f"Target normalization: mean={self.target_mean.mean():.4f}, std={self.target_std.mean():.4f}")
 
     def _load_data(self):
         # Load kSZ/DeltaSigma ratios - shape (15, 921600)
         ksz_npz = np.load(self.ksz_path)
-        self.ksz_data = ksz_npz['profiles']
+        self.ksz_data = ksz_npz['prof']
+        if self.mean_prof and 'prof_std' in ksz_npz:
+            self.ksz_data = np.stack([ksz_npz['prof'], ksz_npz['prof_std']], axis=1).reshape(-1, ksz_npz['prof'].shape[1])
+        self.r_bins = ksz_npz['radii']
         
         # Load Ptot/Pdm ratios - shape (1024, 255)
         ptot_npz = np.load(self.ptot_path)
         self.ptot_data = ptot_npz['Ptot_Pdm_ratio']
+        self.k_bins = ptot_npz['k']
 
         # Load cosmological parameters only if needed
         if self.include_cosmo_params:
@@ -70,16 +57,14 @@ class KSZDeltaSigmaDataset(Dataset):
         print(f"Loaded ptot_data shape: {self.ptot_data.shape}")
         print(f"Include cosmo params: {self.include_cosmo_params}")
         
-        # Validate shapes
-        self.r_bins =self.ksz_data.shape[0]
         
         # Check if we have the expected amount of data
-        if self.ksz_data.shape[1] != self.n_samples * self.n_features_per_sample:
-            print(f"\nWARNING: ksz_data has {self.ksz_data.shape[1]} values, not {self.n_samples * self.n_features_per_sample}")
+        if self.ksz_data.shape[0] != self.n_samples * self.n_features_per_sample:
+            print(f"\nWARNING: ksz_data has {self.ksz_data.shape[0]} values, not {self.n_samples * self.n_features_per_sample}")
             print(f"Recalculating n_features_per_sample...")
-            self.n_features_per_sample = self.ksz_data.shape[1] // self.n_samples
+            self.n_features_per_sample = self.ksz_data.shape[0] // self.n_samples
             print(f"Updated n_features_per_sample to: {self.n_features_per_sample}")
-            print(f"Input feature dimension will be: {self.r_bins * self.n_features_per_sample}")
+            print(f"Input feature dimension will be: {self.r_bins.shape[0] * self.n_features_per_sample}")
         
         assert self.ptot_data.shape[0] == self.n_samples, \
             f"Expected {self.n_samples} samples in ptot_data, got {self.ptot_data.shape[0]}"
@@ -87,19 +72,39 @@ class KSZDeltaSigmaDataset(Dataset):
         print(f"\nFinal configuration:")
         print(f"  n_samples: {self.n_samples}")
         print(f"  n_features_per_sample: {self.n_features_per_sample}")
-        print(f"  Input dimension: {self.r_bins * self.n_features_per_sample}")
+        print(f"  Input dimension: {self.r_bins.shape[0] * self.n_features_per_sample}")
         print(f"  Output dimension: {self.ptot_data.shape[1]}")
         print(f"=========================\n")
 
     def __len__(self):
         return self.n_samples
+    
+    @property
+    def n_radial_bins(self):
+        """Number of radial bins in kSZ data."""
+        return self.r_bins.shape[1]
+    
+    @property
+    def n_spatial_positions(self):
+        """Number of spatial positions per sample."""
+        return self.n_features_per_sample
+    
+    @property
+    def n_power_bins(self):
+        """Number of power spectrum bins."""
+        return self.ptot_data.shape[1]
+    
+    @property
+    def input_dim(self):
+        """Total input feature dimension (n_radial_bins * n_spatial_positions)."""
+        return self.r_bins.shape[1] * self.n_features_per_sample
 
     def __getitem__(self, idx):
         """
         Get the idx-th paired sample.
         
         Returns:
-            input_features: (15*900,) kSZ/DeltaSigma ratio normalized tensor
+            input_features: (900*15,) kSZ/DeltaSigma ratio normalized tensor
             target: (255,) normalized tensor
             cosmo_params: (n_params,) cosmological parameters or None
         """
@@ -107,20 +112,14 @@ class KSZDeltaSigmaDataset(Dataset):
         start_col = idx * self.n_features_per_sample
         end_col = (idx + 1) * self.n_features_per_sample
         
-        # Shape: (15, 900)
-        ksz_sample = self.ksz_data[:, start_col:end_col]
+        # Shape: (900, 15) or (1,15) depending on n_features_per_sample
+        ksz_sample = self.ksz_data[start_col:end_col, :]
         
-        # Flatten to (15 * 900,)
+        # Flatten to (900 * 15,)
         input_features = ksz_sample.flatten()
-        
-        # Normalize inputs
-        # input_features = (input_features - self.input_mean) / self.input_std
         
         # Get target - shape: (255,)
         target = self.ptot_data[idx]
-        
-        # Normalize targets
-        # target = (target - self.target_mean) / self.target_std
         
         # Get cosmological parameters if included
         if self.include_cosmo_params:
@@ -149,6 +148,25 @@ def get_dataloader(data_dir, batch_size=16, shuffle=True, num_workers=0, include
     """
     dataset = KSZDeltaSigmaDataset(data_dir, include_cosmo_params=include_cosmo_params)
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
+
+
+def custom_collate_fn(batch):
+    """
+    Custom collate function that handles None values for cosmo_params.
+    """
+    inputs, targets, cosmo_params = zip(*batch)
+    
+    # Stack inputs and targets normally
+    inputs_tensor = torch.stack(inputs)
+    targets_tensor = torch.stack(targets)
+    
+    # Handle cosmo_params - check if all are None
+    if cosmo_params[0] is None:
+        cosmo_params_tensor = None
+    else:
+        cosmo_params_tensor = torch.stack(cosmo_params)
+    
+    return inputs_tensor, targets_tensor, cosmo_params_tensor
 
 
 def get_train_val_test_dataloaders(data_dir, batch_size=16, train_ratio=0.7, val_ratio=0.15, 
@@ -193,10 +211,11 @@ def get_train_val_test_dataloaders(data_dir, batch_size=16, train_ratio=0.7, val
     
     print(f"Dataset split: {len(train_indices)} train, {len(val_indices)} val, {len(test_indices)} test")
     
-    # Create subset dataloaders
+    # Create subset dataloaders with custom collate function
     def create_dataloader(subset_indices, shuffle):
         subset = Subset(dataset, subset_indices)
-        return DataLoader(subset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
+        return DataLoader(subset, batch_size=batch_size, shuffle=shuffle, 
+                         num_workers=num_workers, collate_fn=custom_collate_fn)
     
     train_dl = create_dataloader(train_indices, shuffle=True)
     val_dl = create_dataloader(val_indices, shuffle=False)

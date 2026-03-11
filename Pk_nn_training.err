@@ -1,4 +1,13 @@
+[rank: 0] Seed set to 42
 Traceback (most recent call last):
-  File "/pscratch/sd/l/lindajin/DH_profile_kSZ_WL/src/models/pk_neural_emulator.py", line 337, in <module>
-    from src.data.camels_dataloader import get_train_val_test_dataloaders
-ModuleNotFoundError: No module named 'src'
+  File "/pscratch/sd/l/lindajin/DH_profile_kSZ_WL/src/models/pk_neural_emulator.py", line 400, in <module>
+    temp_dataset = KSZDeltaSigmaDataset(data_dir, include_cosmo_params=use_cosmo_params, mean_prof=mean_profile)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/pscratch/sd/l/lindajin/DH_profile_kSZ_WL/src/data/camels_dataloader.py", line 33, in __init__
+    self._load_data()
+  File "/pscratch/sd/l/lindajin/DH_profile_kSZ_WL/src/data/camels_dataloader.py", line 40, in _load_data
+    self.ksz_data = np.stack([ksz_npz['prof'], ksz_npz['prof_std']], axis=1).reshape(-1, ksz_npz['prof'].shape[1])
+                                               ~~~~~~~^^^^^^^^^^^^
+  File "/global/u1/l/lindajin/virtualenvs/env1/lib/python3.11/site-packages/numpy/lib/_npyio_impl.py", line 261, in __getitem__
+    raise KeyError(f"{key} is not a file in the archive")
+KeyError: 'prof_std is not a file in the archive'

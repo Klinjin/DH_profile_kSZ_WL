@@ -1,0 +1,10 @@
+
+============================================================
+  RUN NAME: mean_Pk_NN_1000_epochs_32_batch_smoother
+  Use cosmological parameters: False
+  Batch size: 32
+  Ensemble members: 100
+  Learning rate: 0.001
+  Use mean profile: True
+============================================================
+

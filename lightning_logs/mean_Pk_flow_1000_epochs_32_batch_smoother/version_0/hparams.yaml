@@ -1,0 +1,16 @@
+config: !!python/object:src.models.flow_nn.FlowConfig
+  context_embed_dim: 256
+  dropout_rate: 0.1
+  encoder_latent_dim: 64
+  flow_hidden_dims:
+  - 100
+  - 100
+  - 256
+  n_cosmo_params: 0
+  n_power_bins: 118
+  n_radial_bins: 1024
+  n_spatial_positions: 1
+  reverse: false
+  sigma: 0.02
+  smoothness_weight: 0.5
+  time_embed_dim: 128

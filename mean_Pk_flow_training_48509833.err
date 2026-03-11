@@ -1,0 +1,24 @@
+/global/u1/l/lindajin/virtualenvs/env1/lib/python3.11/site-packages/torch/cuda/__init__.py:716: UserWarning: Can't initialize NVML
+  warnings.warn("Can't initialize NVML")
+GPU available: False, used: False
+TPU available: False, using: 0 TPU cores
+HPU available: False, using: 0 HPUs
+`Trainer(val_check_interval=1.0)` was configured so validation will run at the end of the training epoch..
+
+  | Name           | Type          | Params | Mode 
+---------------------------------------------------------
+0 | encoder        | kSZEncoder    | 0      | train
+1 | velocity_model | VelocityModel | 199 K  | train
+2 | flow_matcher   | FlowMatching  | 199 K  | train
+---------------------------------------------------------
+199 K     Trainable params
+0         Non-trainable params
+199 K     Total params
+0.800     Total estimated model params size (MB)
+22        Modules in train mode
+0         Modules in eval mode
+SLURM auto-requeueing enabled. Setting signal handlers.
+/global/u1/l/lindajin/virtualenvs/env1/lib/python3.11/site-packages/lightning/pytorch/utilities/data.py:79: Trying to infer the `batch_size` from an ambiguous collection. The batch size we found is 32. To avoid any miscalculations, use `self.log(..., batch_size=batch_size)`.
+/global/u1/l/lindajin/virtualenvs/env1/lib/python3.11/site-packages/lightning/pytorch/utilities/data.py:79: Trying to infer the `batch_size` from an ambiguous collection. The batch size we found is 12. To avoid any miscalculations, use `self.log(..., batch_size=batch_size)`.
+/global/u1/l/lindajin/virtualenvs/env1/lib/python3.11/site-packages/lightning/pytorch/utilities/data.py:79: Trying to infer the `batch_size` from an ambiguous collection. The batch size we found is 26. To avoid any miscalculations, use `self.log(..., batch_size=batch_size)`.
+`Trainer.fit` stopped: `max_epochs=1000` reached.

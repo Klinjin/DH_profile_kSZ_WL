@@ -1,0 +1,21 @@
+/global/u1/l/lindajin/virtualenvs/env1/lib/python3.11/site-packages/torch/cuda/__init__.py:716: UserWarning: Can't initialize NVML
+  warnings.warn("Can't initialize NVML")
+GPU available: False, used: False
+TPU available: False, using: 0 TPU cores
+HPU available: False, using: 0 HPUs
+`Trainer(val_check_interval=1.0)` was configured so validation will run at the end of the training epoch..
+
+  | Name           | Type          | Params | Mode 
+---------------------------------------------------------
+0 | encoder        | kSZEncoder    | 0      | train
+1 | velocity_model | VelocityModel | 208 K  | train
+2 | flow_matcher   | FlowMatching  | 208 K  | train
+---------------------------------------------------------
+208 K     Trainable params
+0         Non-trainable params
+208 K     Total params
+0.836     Total estimated model params size (MB)
+22        Modules in train mode
+0         Modules in eval mode
+SLURM auto-requeueing enabled. Setting signal handlers.
+`Trainer.fit` stopped: `max_epochs=1000` reached.
